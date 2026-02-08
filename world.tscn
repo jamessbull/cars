@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3 uid="uid://bxkli6bqjnv5c"]
+
+[ext_resource type="Script" path="res://SpinningCube.cs" id="1_cube"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+
+[node name="World" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.96, 0.28, 0, -0.28, 0.96, 0, 1, 3)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 0, 0)
+
+[node name="Cube" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_1")
+script = ExtResource("1_cube")
