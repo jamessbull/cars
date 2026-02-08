@@ -8,10 +8,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="..\..\cars\CubeRotationLogic.cs" Link="CubeRotationLogic.cs" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="coverlet.collector" Version="6.0.2"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0"/>
         <PackageReference Include="xunit" Version="2.9.2"/>
@@ -20,6 +16,10 @@
 
     <ItemGroup>
         <Using Include="Xunit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\cars\Cars.csproj" />
     </ItemGroup>
 
 </Project>
