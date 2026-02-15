@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b6mqinx3m34x2"]
+[gd_scene format=3 uid="uid://b6mqinx3m34x2"]
 
 [ext_resource type="Script" uid="uid://ciaguu5b5bh1w" path="res://TrackGridMap.cs" id="1_track"]
 [ext_resource type="PackedScene" path="res://car.tscn" id="2_car"]
@@ -12,5 +12,5 @@ script = ExtResource("1_track")
 transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 5, 0)
 shadow_enabled = true
 
-[node name="Car" parent="." instance=ExtResource("2_car")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1.5, 1)
+[node name="Car" parent="." unique_id=203072382 instance=ExtResource("2_car")]
+transform = Transform3D(1.1924881e-08, 0, -1, 0, 1, 0, 1, 0, 1.1924881e-08, 1.2469034, 1.5, 1)
