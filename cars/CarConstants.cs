@@ -14,8 +14,8 @@ public static class CarConstants
     public const float WheelWidth = 0.15f;
 
     // Wheel positions relative to chassis center (x = left/right, z = front/back)
-    public const float WheelBaseHalf = 0.7f;   // half length between front/rear axles
-    public const float TrackHalf = 0.45f;       // half width between left/right wheels
+    public const float WheelBaseHalf = 0.95f;   // half length between front/rear axles
+    public const float TrackHalf = 0.55f;       // half width between left/right wheels
 
     // Suspension spring
     public const float SpringStiffness = 1500f;   // N/m

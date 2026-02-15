@@ -14,10 +14,17 @@ public partial class CarCamera : Camera3D
         if (_target == null) return;
 
         var targetPos = _target.GlobalPosition;
-        var back = _target.GlobalTransform.Basis.Z.Normalized();
 
+        // Project the car's forward direction onto the XZ plane (ignore pitch/roll)
+        var forward3D = -_target.GlobalTransform.Basis.Z;
+        var flatForward = new Vector3(forward3D.X, 0f, forward3D.Z);
+        if (flatForward.LengthSquared() < 0.001f)
+            flatForward = new Vector3(0f, 0f, -1f); // fallback if pointing straight up/down
+        flatForward = flatForward.Normalized();
+
+        // Position camera behind (opposite of flat forward) and above
         var desiredPos = targetPos
-            + back * CarConstants.CameraBehind
+            - flatForward * CarConstants.CameraBehind
             + Vector3.Up * CarConstants.CameraAbove;
 
         float t = (float)(1.0 - Mathf.Exp(-CarConstants.CameraSmoothing * delta));

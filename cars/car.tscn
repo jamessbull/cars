@@ -43,22 +43,22 @@ mesh = SubResource("BoxMesh_chassis")
 surface_material_override/0 = SubResource("Material_chassis")
 
 [node name="Wheel0" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.45, -0.35, -0.7)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.55, -0.35, -0.95)
 mesh = SubResource("CylinderMesh_wheel")
 surface_material_override/0 = SubResource("Material_wheel")
 
 [node name="Wheel1" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.45, -0.35, -0.7)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.55, -0.35, -0.95)
 mesh = SubResource("CylinderMesh_wheel")
 surface_material_override/0 = SubResource("Material_wheel")
 
 [node name="Wheel2" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.45, -0.35, 0.7)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.55, -0.35, 0.95)
 mesh = SubResource("CylinderMesh_wheel")
 surface_material_override/0 = SubResource("Material_wheel")
 
 [node name="Wheel3" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.45, -0.35, 0.7)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.55, -0.35, 0.95)
 mesh = SubResource("CylinderMesh_wheel")
 surface_material_override/0 = SubResource("Material_wheel")
 
