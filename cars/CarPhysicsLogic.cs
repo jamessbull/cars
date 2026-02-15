@@ -1,72 +1,11 @@
 using System;
 
 /// <summary>
-/// Input state for the car physics computation each frame.
-/// </summary>
-public struct CarInput
-{
-    public bool Throttle;
-    public bool Brake;
-    public bool SteerLeft;
-    public bool SteerRight;
-}
-
-/// <summary>
-/// Per-wheel ray data gathered from Godot raycasts.
-/// </summary>
-public struct WheelRayData
-{
-    public SpringInput Spring;
-    /// <summary>Surface normal at hit point (unit vector, only valid if Spring.Hit).</summary>
-    public float NormalX, NormalY, NormalZ;
-}
-
-/// <summary>
-/// Per-wheel output from the physics computation.
-/// </summary>
-public struct WheelResult
-{
-    /// <summary>Force vector to apply at the wheel attachment point (world space).</summary>
-    public float ForceX, ForceY, ForceZ;
-    /// <summary>Wheel visual offset below the attachment point.</summary>
-    public float WheelOffset;
-    /// <summary>Compression ratio 0..1.</summary>
-    public float Compression;
-    /// <summary>Whether this wheel is grounded.</summary>
-    public bool Grounded;
-}
-
-/// <summary>
-/// Full output of the car physics computation for one frame.
-/// </summary>
-public struct CarPhysicsResult
-{
-    public WheelResult Wheel0, Wheel1, Wheel2, Wheel3;
-    /// <summary>Drive force vector to apply at the chassis center (world space).</summary>
-    public float DriveForceX, DriveForceY, DriveForceZ;
-    /// <summary>Target angular velocity around Y axis (rad/s) from bicycle model.</summary>
-    public float SteeringYawSpeed;
-    /// <summary>Current front wheel steering angle (rad, positive = left).</summary>
-    public float SteerAngle;
-    /// <summary>Number of wheels currently grounded.</summary>
-    public int GroundedCount;
-}
-
-/// <summary>
-/// Orchestrates 4 suspension springs + drive/steering forces. Pure C# — no Godot dependency.
+/// Orchestrates suspension, steering, and drive forces for one physics frame.
+/// Pure C# — no Godot dependency.
 /// </summary>
 public static class CarPhysicsLogic
 {
-    /// <summary>
-    /// Compute all forces for one physics frame.
-    /// </summary>
-    /// <param name="input">Player input state.</param>
-    /// <param name="rays">Ray data for wheels 0-3 (FL, FR, RL, RR).</param>
-    /// <param name="forwardX">Chassis forward direction X (unit vector).</param>
-    /// <param name="forwardY">Chassis forward direction Y.</param>
-    /// <param name="forwardZ">Chassis forward direction Z.</param>
-    /// <param name="speed">Current speed along forward direction (positive = forward).</param>
-    /// <param name="currentSteerAngle">Current front wheel angle (rad, positive = left).</param>
     public static CarPhysicsResult ComputePhysics(
         CarInput input,
         WheelRayData[] rays,
@@ -79,35 +18,22 @@ public static class CarPhysicsLogic
 
         var result = new CarPhysicsResult();
 
-        // Compute each wheel's suspension
-        var w0 = ComputeWheel(rays[0]);
-        var w1 = ComputeWheel(rays[1]);
-        var w2 = ComputeWheel(rays[2]);
-        var w3 = ComputeWheel(rays[3]);
+        // Suspension
+        result.Wheel0 = ComputeWheel(rays[0]);
+        result.Wheel1 = ComputeWheel(rays[1]);
+        result.Wheel2 = ComputeWheel(rays[2]);
+        result.Wheel3 = ComputeWheel(rays[3]);
 
-        result.Wheel0 = w0;
-        result.Wheel1 = w1;
-        result.Wheel2 = w2;
-        result.Wheel3 = w3;
-
-        int grounded = (w0.Grounded ? 1 : 0) + (w1.Grounded ? 1 : 0) +
-                       (w2.Grounded ? 1 : 0) + (w3.Grounded ? 1 : 0);
+        int grounded = (result.Wheel0.Grounded ? 1 : 0) + (result.Wheel1.Grounded ? 1 : 0) +
+                       (result.Wheel2.Grounded ? 1 : 0) + (result.Wheel3.Grounded ? 1 : 0);
         result.GroundedCount = grounded;
 
-        // Update steering angle — ramps toward input, returns to center when released
-        float targetAngle = 0f;
-        if (input.SteerLeft)
-            targetAngle += CarConstants.MaxSteerAngle;
-        if (input.SteerRight)
-            targetAngle -= CarConstants.MaxSteerAngle;
-
-        float steerAngle = currentSteerAngle;
-        if (targetAngle > steerAngle)
-            steerAngle = Math.Min(steerAngle + CarConstants.SteerAngleStep, targetAngle);
-        else if (targetAngle < steerAngle)
-            steerAngle = Math.Max(steerAngle - CarConstants.SteerAngleStep, targetAngle);
-
-        result.SteerAngle = steerAngle;
+        // Steering
+        var steering = SteeringModel.Compute(
+            input.SteerLeft, input.SteerRight,
+            currentSteerAngle, speed, grounded > 0);
+        result.SteerAngle = steering.SteerAngle;
+        result.SteeringYawSpeed = steering.YawSpeed;
 
         // Drive forces — only when at least one wheel is grounded
         if (grounded > 0)
@@ -121,24 +47,14 @@ public static class CarPhysicsLogic
             else if (input.Brake)
             {
                 if (speed > 0.5f)
-                {
-                    // Braking: oppose forward velocity
                     driveForce = -CarConstants.BrakeForce;
-                }
                 else
-                {
-                    // Reverse at half power
                     driveForce = -CarConstants.ReverseForce;
-                }
             }
 
             result.DriveForceX = forwardX * driveForce;
             result.DriveForceY = forwardY * driveForce;
             result.DriveForceZ = forwardZ * driveForce;
-
-            // Bicycle model: yaw_rate = speed * tan(steerAngle) / wheelbase
-            // Naturally gives zero rotation when stopped
-            result.SteeringYawSpeed = (speed * (float)Math.Tan(steerAngle)) / CarConstants.Wheelbase;
         }
 
         return result;
@@ -161,9 +77,6 @@ public static class CarPhysicsLogic
 
         if (spring.Grounded)
         {
-            // Spring pushes along its own axis (car's local up = +Y in logic space).
-            // Surface normal is NOT used for spring force — only matters for
-            // tire grip/traction which is not yet modeled.
             result.ForceX = 0f;
             result.ForceY = spring.Force;
             result.ForceZ = 0f;
