@@ -6,11 +6,11 @@ public class TileGeometryTests
     public void Flat_IsThinSlab()
     {
         var tile = TileGeometry.GenerateTile(TileType.Flat);
-        // 6 faces * 4 verts = 24 verts, 3 floats each
-        Assert.Equal(72, tile.Vertices.Length);
-        Assert.Equal(72, tile.Normals.Length);
-        // 6 faces * 2 tris * 3 indices = 36
-        Assert.Equal(36, tile.Indices.Length);
+        // 2 faces (top + bottom) * 4 verts = 8 verts, 3 floats each
+        Assert.Equal(24, tile.Vertices.Length);
+        Assert.Equal(24, tile.Normals.Length);
+        // 2 faces * 2 tris * 3 indices = 12
+        Assert.Equal(12, tile.Indices.Length);
     }
 
     [Fact]
@@ -142,18 +142,20 @@ public class TileGeometryTests
     public void Ramp_HasMultipleFaces()
     {
         var tile = TileGeometry.GenerateTile(TileType.Ramp);
-        // Solid wedge: top(2) + bottom(2) + front(2) + left(1) + right(1) = 8 triangles
-        Assert.Equal(24, tile.Indices.Length);
+        // Ramp surface only = 2 triangles
+        Assert.Equal(6, tile.Indices.Length);
     }
 
     [Fact]
-    public void Ramp_TopSurfaceNormalPointsUpAndBack()
+    public void Ramp_TopSurfaceNormalPointsDownSlope()
     {
         var tile = TileGeometry.GenerateTile(TileType.Ramp);
+        // Normal points toward the high end of the ramp (-Z in canonical orientation)
+        // so the front face is visible from the approach (low) side
         float ny = tile.Normals[1];
         float nz = tile.Normals[2];
-        Assert.True(ny > 0, "Ramp surface normal Y should be positive (pointing up)");
-        Assert.True(nz > 0, "Ramp surface normal Z should be positive (pointing back from slope)");
+        Assert.True(ny < 0, "Ramp surface normal Y should be negative (front face points down-slope)");
+        Assert.True(nz < 0, "Ramp surface normal Z should be negative (toward high end)");
     }
 
     [Fact]

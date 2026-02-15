@@ -33,6 +33,7 @@ public static class TileGeometry
     {
         // Thin slab centered on origin: X=[-w/2, w/2], Z=[-d/2, d/2]
         // Top face at Y=0, bottom face at Y=-FlatThickness
+        // No side walls — tiles are always adjacent so internal walls cause z-fighting
         float hw = CellWidth / 2f;
         float hd = CellDepth / 2f;
         float t = FlatThickness;
@@ -59,42 +60,6 @@ public static class TileGeometry
         AddVertex(vertices, normals,  hw, -t,  hd, 0, -1, 0);
         AddTriangle(indices, vi, 0, 1, 2);
         AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Front wall (Z=-hd, facing -Z)
-        AddVertex(vertices, normals, -hw,  0, -hd, 0, 0, -1);
-        AddVertex(vertices, normals,  hw,  0, -hd, 0, 0, -1);
-        AddVertex(vertices, normals,  hw, -t, -hd, 0, 0, -1);
-        AddVertex(vertices, normals, -hw, -t, -hd, 0, 0, -1);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Back wall (Z=+hd, facing +Z)
-        AddVertex(vertices, normals,  hw,  0, hd, 0, 0, 1);
-        AddVertex(vertices, normals, -hw,  0, hd, 0, 0, 1);
-        AddVertex(vertices, normals, -hw, -t, hd, 0, 0, 1);
-        AddVertex(vertices, normals,  hw, -t, hd, 0, 0, 1);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Left wall (X=-hw, facing -X)
-        AddVertex(vertices, normals, -hw,  0,  hd, -1, 0, 0);
-        AddVertex(vertices, normals, -hw,  0, -hd, -1, 0, 0);
-        AddVertex(vertices, normals, -hw, -t, -hd, -1, 0, 0);
-        AddVertex(vertices, normals, -hw, -t,  hd, -1, 0, 0);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Right wall (X=+hw, facing +X)
-        AddVertex(vertices, normals, hw,  0, -hd, 1, 0, 0);
-        AddVertex(vertices, normals, hw,  0,  hd, 1, 0, 0);
-        AddVertex(vertices, normals, hw, -t,  hd, 1, 0, 0);
-        AddVertex(vertices, normals, hw, -t, -hd, 1, 0, 0);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
 
         return new TileMeshData
         {
@@ -108,7 +73,8 @@ public static class TileGeometry
     {
         // Canonical ramp rises toward -Z (North), centered on origin
         // Back edge (Z=+hd) at Y=0, front edge (Z=-hd) at Y=CellHeight
-        // Solid wedge: top surface + bottom + front wall + 2 side walls
+        // Only top (ramp surface) and bottom — no side/front walls to avoid
+        // z-fighting between adjacent tiles
         float hw = CellWidth / 2f;
         float hd = CellDepth / 2f;
         float h = CellHeight;
@@ -126,48 +92,15 @@ public static class TileGeometry
 
         int vi = 0;
 
-        // Face 1: Top (ramp surface) - 4 verts, 2 tris
-        AddVertex(vertices, normals, -hw, 0, hd, 0, ny, nz);
-        AddVertex(vertices, normals,  hw, 0, hd, 0, ny, nz);
-        AddVertex(vertices, normals,  hw, h, -hd, 0, ny, nz);
-        AddVertex(vertices, normals, -hw, h, -hd, 0, ny, nz);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Face 2: Bottom - quad at Y=0, facing down
-        AddVertex(vertices, normals, -hw, 0,  hd, 0, -1, 0);
-        AddVertex(vertices, normals, -hw, 0, -hd, 0, -1, 0);
-        AddVertex(vertices, normals,  hw, 0, -hd, 0, -1, 0);
-        AddVertex(vertices, normals,  hw, 0,  hd, 0, -1, 0);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Face 3: Front wall (Z=-hd) - quad, facing -Z
-        // Vertex order chosen so geometric normal points -Z (outward)
-        AddVertex(vertices, normals, -hw, 0, -hd, 0, 0, -1);
-        AddVertex(vertices, normals, -hw, h, -hd, 0, 0, -1);
-        AddVertex(vertices, normals,  hw, h, -hd, 0, 0, -1);
-        AddVertex(vertices, normals,  hw, 0, -hd, 0, 0, -1);
-        AddTriangle(indices, vi, 0, 1, 2);
-        AddTriangle(indices, vi, 0, 2, 3);
-        vi += 4;
-
-        // Face 4: Left wall (X=-hw) - triangle, facing -X
-        // Vertex order: geometric normal points -X (outward)
-        AddVertex(vertices, normals, -hw, 0,  hd, -1, 0, 0);
-        AddVertex(vertices, normals, -hw, h, -hd, -1, 0, 0);
-        AddVertex(vertices, normals, -hw, 0, -hd, -1, 0, 0);
-        AddTriangle(indices, vi, 0, 1, 2);
-        vi += 3;
-
-        // Face 5: Right wall (X=+hw) - triangle, facing +X
-        // Vertex order: geometric normal points +X (outward)
-        AddVertex(vertices, normals, hw, 0,  hd, 1, 0, 0);
-        AddVertex(vertices, normals, hw, 0, -hd, 1, 0, 0);
-        AddVertex(vertices, normals, hw, h, -hd, 1, 0, 0);
-        AddTriangle(indices, vi, 0, 1, 2);
+        // Ramp surface only — no bottom face (it interferes with raycasts
+        // since HitBackFaces=true can hit Y=0 bottom before the angled surface)
+        // Winding flipped so front face points up-slope (visible from approach side)
+        AddVertex(vertices, normals, -hw, 0, hd, 0, -ny, -nz);
+        AddVertex(vertices, normals,  hw, 0, hd, 0, -ny, -nz);
+        AddVertex(vertices, normals,  hw, h, -hd, 0, -ny, -nz);
+        AddVertex(vertices, normals, -hw, h, -hd, 0, -ny, -nz);
+        AddTriangle(indices, vi, 0, 2, 1);
+        AddTriangle(indices, vi, 0, 3, 2);
 
         return new TileMeshData
         {

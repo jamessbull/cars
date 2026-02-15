@@ -40,10 +40,12 @@ public partial class TrackGridMap : Node3D
         var flatMaterial = new StandardMaterial3D();
         flatMaterial.AlbedoColor = new Color(0.3f, 0.8f, 0.3f);
         flatMaterial.Roughness = 0.8f;
+        flatMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
 
         var rampMaterial = new StandardMaterial3D();
         rampMaterial.AlbedoColor = new Color(0.7f, 0.7f, 0.7f);
         rampMaterial.Roughness = 0.8f;
+        rampMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
 
         foreach (TileType type in System.Enum.GetValues<TileType>())
         {
@@ -106,6 +108,7 @@ public partial class TrackGridMap : Node3D
         }
 
         var shape = new ConcavePolygonShape3D();
+        shape.BackfaceCollision = true;
         shape.SetFaces(faces);
         return shape;
     }

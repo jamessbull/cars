@@ -39,22 +39,35 @@ public static class TrackLayout
     /// </summary>
     public static TilePlacement[] GetDemoTrack()
     {
-        return new TilePlacement[]
+        // Base track pattern (single lane along X axis)
+        var baseTiles = new TilePlacement[]
         {
-            // X=0: Flat approach
             new TilePlacement { Type = TileType.Flat, GridX = 0, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            // X=1: Flat approach
             new TilePlacement { Type = TileType.Flat, GridX = 1, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            // X=2: Ramp facing East (rises from Y=0 toward +X direction)
             new TilePlacement { Type = TileType.Ramp, GridX = 2, GridY = 0, GridZ = 0, Facing = CardinalDirection.East },
-            // X=3: Flat at top of hump
             new TilePlacement { Type = TileType.Flat, GridX = 3, GridY = 1, GridZ = 0, Facing = CardinalDirection.North },
-            // X=4: Ramp facing West at Y=0 (high end at Y=1 on -X side, low end at Y=0 on +X side)
             new TilePlacement { Type = TileType.Ramp, GridX = 4, GridY = 0, GridZ = 0, Facing = CardinalDirection.West },
-            // X=5: Flat exit
             new TilePlacement { Type = TileType.Flat, GridX = 5, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            // X=6: Flat exit
             new TilePlacement { Type = TileType.Flat, GridX = 6, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
         };
+
+        // Replicate across 3 lanes: Z = -1, 0, +1
+        var result = new TilePlacement[baseTiles.Length * 3];
+        int idx = 0;
+        for (int lane = -1; lane <= 1; lane++)
+        {
+            foreach (var tile in baseTiles)
+            {
+                result[idx++] = new TilePlacement
+                {
+                    Type = tile.Type,
+                    GridX = tile.GridX,
+                    GridY = tile.GridY,
+                    GridZ = tile.GridZ + lane,
+                    Facing = tile.Facing
+                };
+            }
+        }
+        return result;
     }
 }

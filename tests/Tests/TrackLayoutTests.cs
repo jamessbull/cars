@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace Tests;
 
 public class TrackLayoutTests
@@ -5,79 +7,79 @@ public class TrackLayoutTests
     private readonly TilePlacement[] _track = TrackLayout.GetDemoTrack();
 
     [Fact]
-    public void DemoTrack_Has7Tiles()
+    public void DemoTrack_Has21Tiles()
     {
-        Assert.Equal(7, _track.Length);
+        // 7 tiles per lane x 3 lanes
+        Assert.Equal(21, _track.Length);
     }
 
     [Fact]
-    public void DemoTrack_FirstTwoAreFlat()
+    public void DemoTrack_ThreeLanes()
     {
-        Assert.Equal(TileType.Flat, _track[0].Type);
-        Assert.Equal(TileType.Flat, _track[1].Type);
+        var zValues = _track.Select(t => t.GridZ).Distinct().OrderBy(z => z).ToArray();
+        Assert.Equal(new[] { -1, 0, 1 }, zValues);
     }
 
     [Fact]
-    public void DemoTrack_ThirdIsRampFacingEast()
+    public void DemoTrack_EachLaneHas7Tiles()
     {
-        Assert.Equal(TileType.Ramp, _track[2].Type);
-        Assert.Equal(CardinalDirection.East, _track[2].Facing);
-    }
-
-    [Fact]
-    public void DemoTrack_FourthIsFlatAtY1()
-    {
-        Assert.Equal(TileType.Flat, _track[3].Type);
-        Assert.Equal(1, _track[3].GridY);
-    }
-
-    [Fact]
-    public void DemoTrack_FifthIsRampFacingWest()
-    {
-        Assert.Equal(TileType.Ramp, _track[4].Type);
-        Assert.Equal(CardinalDirection.West, _track[4].Facing);
-    }
-
-    [Fact]
-    public void DemoTrack_LastTwoAreFlat()
-    {
-        Assert.Equal(TileType.Flat, _track[5].Type);
-        Assert.Equal(TileType.Flat, _track[6].Type);
-    }
-
-    [Fact]
-    public void DemoTrack_XPositionsAreSequential()
-    {
-        for (int i = 0; i < _track.Length; i++)
+        for (int lane = -1; lane <= 1; lane++)
         {
-            Assert.Equal(i, _track[i].GridX);
+            var laneTiles = _track.Where(t => t.GridZ == lane).ToArray();
+            Assert.Equal(7, laneTiles.Length);
         }
     }
 
     [Fact]
-    public void DemoTrack_AllOnSameZPlane()
+    public void DemoTrack_CenterLaneMatchesOriginalPattern()
     {
-        foreach (var tile in _track)
+        var center = _track.Where(t => t.GridZ == 0).OrderBy(t => t.GridX).ToArray();
+
+        Assert.Equal(TileType.Flat, center[0].Type);
+        Assert.Equal(TileType.Flat, center[1].Type);
+        Assert.Equal(TileType.Ramp, center[2].Type);
+        Assert.Equal(CardinalDirection.East, center[2].Facing);
+        Assert.Equal(TileType.Flat, center[3].Type);
+        Assert.Equal(1, center[3].GridY);
+        Assert.Equal(TileType.Ramp, center[4].Type);
+        Assert.Equal(CardinalDirection.West, center[4].Facing);
+        Assert.Equal(TileType.Flat, center[5].Type);
+        Assert.Equal(TileType.Flat, center[6].Type);
+    }
+
+    [Fact]
+    public void DemoTrack_AllLanesHaveSameXPattern()
+    {
+        var center = _track.Where(t => t.GridZ == 0).OrderBy(t => t.GridX).ToArray();
+        for (int lane = -1; lane <= 1; lane++)
         {
-            Assert.Equal(0, tile.GridZ);
+            var laneTiles = _track.Where(t => t.GridZ == lane).OrderBy(t => t.GridX).ToArray();
+            for (int i = 0; i < 7; i++)
+            {
+                Assert.Equal(center[i].Type, laneTiles[i].Type);
+                Assert.Equal(center[i].GridX, laneTiles[i].GridX);
+                Assert.Equal(center[i].GridY, laneTiles[i].GridY);
+                Assert.Equal(center[i].Facing, laneTiles[i].Facing);
+            }
         }
     }
 
     [Fact]
     public void DemoTrack_ApproachAndExitAtY0()
     {
-        Assert.Equal(0, _track[0].GridY);
-        Assert.Equal(0, _track[1].GridY);
-        Assert.Equal(0, _track[5].GridY);
-        Assert.Equal(0, _track[6].GridY);
+        var center = _track.Where(t => t.GridZ == 0).OrderBy(t => t.GridX).ToArray();
+        Assert.Equal(0, center[0].GridY);
+        Assert.Equal(0, center[1].GridY);
+        Assert.Equal(0, center[5].GridY);
+        Assert.Equal(0, center[6].GridY);
     }
 
     [Fact]
     public void DemoTrack_BothRampsAtY0()
     {
-        // Both ramps placed at grid Y=0; the mesh itself spans Y=0 to Y=CellHeight
-        Assert.Equal(0, _track[2].GridY);
-        Assert.Equal(0, _track[4].GridY);
+        var center = _track.Where(t => t.GridZ == 0).OrderBy(t => t.GridX).ToArray();
+        Assert.Equal(0, center[2].GridY);
+        Assert.Equal(0, center[4].GridY);
     }
 
     [Fact]
