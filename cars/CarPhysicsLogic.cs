@@ -44,8 +44,10 @@ public struct CarPhysicsResult
     public WheelResult Wheel0, Wheel1, Wheel2, Wheel3;
     /// <summary>Drive force vector to apply at the chassis center (world space).</summary>
     public float DriveForceX, DriveForceY, DriveForceZ;
-    /// <summary>Target angular velocity around Y axis (rad/s). 0 = no steering.</summary>
+    /// <summary>Target angular velocity around Y axis (rad/s) from bicycle model.</summary>
     public float SteeringYawSpeed;
+    /// <summary>Current front wheel steering angle (rad, positive = left).</summary>
+    public float SteerAngle;
     /// <summary>Number of wheels currently grounded.</summary>
     public int GroundedCount;
 }
@@ -64,11 +66,13 @@ public static class CarPhysicsLogic
     /// <param name="forwardY">Chassis forward direction Y.</param>
     /// <param name="forwardZ">Chassis forward direction Z.</param>
     /// <param name="speed">Current speed along forward direction (positive = forward).</param>
+    /// <param name="currentSteerAngle">Current front wheel angle (rad, positive = left).</param>
     public static CarPhysicsResult ComputePhysics(
         CarInput input,
         WheelRayData[] rays,
         float forwardX, float forwardY, float forwardZ,
-        float speed)
+        float speed,
+        float currentSteerAngle)
     {
         if (rays == null || rays.Length < 4)
             throw new ArgumentException("Exactly 4 wheel rays required", nameof(rays));
@@ -89,6 +93,21 @@ public static class CarPhysicsLogic
         int grounded = (w0.Grounded ? 1 : 0) + (w1.Grounded ? 1 : 0) +
                        (w2.Grounded ? 1 : 0) + (w3.Grounded ? 1 : 0);
         result.GroundedCount = grounded;
+
+        // Update steering angle — ramps toward input, returns to center when released
+        float targetAngle = 0f;
+        if (input.SteerLeft)
+            targetAngle += CarConstants.MaxSteerAngle;
+        if (input.SteerRight)
+            targetAngle -= CarConstants.MaxSteerAngle;
+
+        float steerAngle = currentSteerAngle;
+        if (targetAngle > steerAngle)
+            steerAngle = Math.Min(steerAngle + CarConstants.SteerAngleStep, targetAngle);
+        else if (targetAngle < steerAngle)
+            steerAngle = Math.Max(steerAngle - CarConstants.SteerAngleStep, targetAngle);
+
+        result.SteerAngle = steerAngle;
 
         // Drive forces — only when at least one wheel is grounded
         if (grounded > 0)
@@ -117,13 +136,9 @@ public static class CarPhysicsLogic
             result.DriveForceY = forwardY * driveForce;
             result.DriveForceZ = forwardZ * driveForce;
 
-            // Steering: target angular velocity (immediate, stops when key released)
-            float steer = 0f;
-            if (input.SteerLeft)
-                steer += CarConstants.SteeringSpeed;
-            if (input.SteerRight)
-                steer -= CarConstants.SteeringSpeed;
-            result.SteeringYawSpeed = steer;
+            // Bicycle model: yaw_rate = speed * tan(steerAngle) / wheelbase
+            // Naturally gives zero rotation when stopped
+            result.SteeringYawSpeed = (speed * (float)Math.Tan(steerAngle)) / CarConstants.Wheelbase;
         }
 
         return result;

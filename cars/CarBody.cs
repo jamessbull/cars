@@ -3,6 +3,7 @@ using Godot;
 public partial class CarBody : RigidBody3D
 {
     private MeshInstance3D[] _wheels = new MeshInstance3D[4];
+    private float _steerAngle; // current front wheel angle (rad, positive = left)
 
     // Wheel attachment points relative to chassis center
     private static readonly Vector3[] WheelPositions = new Vector3[]
@@ -53,7 +54,9 @@ public partial class CarBody : RigidBody3D
         var result = CarPhysicsLogic.ComputePhysics(
             input, rays,
             forward.X, forward.Y, forward.Z,
-            speed);
+            speed, _steerAngle);
+
+        _steerAngle = result.SteerAngle;
 
         // Apply suspension forces at wheel attachment points — always world-up
         ApplyWheelForce(result.Wheel0, 0);
@@ -64,6 +67,17 @@ public partial class CarBody : RigidBody3D
         // Apply drive force at center of mass
         var driveForce = new Vector3(result.DriveForceX, result.DriveForceY, result.DriveForceZ);
         ApplyCentralForce(driveForce);
+
+        // Kill lateral velocity — with perfect grip, the car only moves
+        // in the direction it's facing (no sideways drift)
+        // Use flat (XZ) forward to avoid double-counting vertical velocity on ramps
+        if (result.GroundedCount > 0)
+        {
+            var flatForward = new Vector3(forward.X, 0f, forward.Z).Normalized();
+            float flatSpeed = LinearVelocity.Dot(flatForward);
+            float verticalSpeed = LinearVelocity.Y;
+            LinearVelocity = flatForward * flatSpeed + Vector3.Up * verticalSpeed;
+        }
 
         // Steering: directly set Y angular velocity (stops immediately on key release)
         // Also damp and clamp pitch/roll to prevent wild spinning
@@ -171,15 +185,25 @@ public partial class CarBody : RigidBody3D
 
     private void PositionWheels(CarPhysicsResult result)
     {
-        SetWheelPos(0, result.Wheel0);
-        SetWheelPos(1, result.Wheel1);
-        SetWheelPos(2, result.Wheel2);
-        SetWheelPos(3, result.Wheel3);
+        SetWheelPos(0, result.Wheel0, result.SteerAngle);
+        SetWheelPos(1, result.Wheel1, result.SteerAngle);
+        SetWheelPos(2, result.Wheel2, 0f);
+        SetWheelPos(3, result.Wheel3, 0f);
     }
 
-    private void SetWheelPos(int index, WheelResult wheel)
+    private void SetWheelPos(int index, WheelResult wheel, float steerAngle)
     {
         var basePos = WheelPositions[index];
         _wheels[index].Position = new Vector3(basePos.X, wheel.WheelOffset, basePos.Z);
+
+        // Rotate front wheels (0=FL, 1=FR) to show steering angle
+        // Base rotation: 90° around Z to orient cylinder as a wheel (axis along X)
+        // Steering: rotate around Y by steer angle
+        if (index < 2)
+        {
+            var steerBasis = Basis.Identity.Rotated(Vector3.Up, steerAngle);
+            var wheelBasis = new Basis(new Vector3(0, 1, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, 1));
+            _wheels[index].Basis = steerBasis * wheelBasis;
+        }
     }
 }

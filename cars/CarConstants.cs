@@ -28,7 +28,12 @@ public static class CarConstants
     public const float ThrottleForce = 400f;       // N
     public const float BrakeForce = 300f;           // N
     public const float ReverseForce = 150f;         // N (half-power reverse)
-    public const float SteeringSpeed = 2.5f;        // rad/s target angular velocity when steering
+
+    // Steering
+    public const float MaxSteerAngle = 0.7854f;    // rad (45 degrees)
+    public const int SteerSteps = 10;               // frames to reach full lock
+    public const float SteerAngleStep = MaxSteerAngle / SteerSteps; // rad per frame
+    public const float Wheelbase = WheelBaseHalf * 2f; // distance between front and rear axles
 
     // Camera
     public const float CameraBehind = 8f;

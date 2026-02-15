@@ -3,8 +3,8 @@ namespace Tests;
 public class SuspensionSpringTests
 {
     private const float Rest = CarConstants.SpringRestLength;      // 0.5
-    private const float K = CarConstants.SpringStiffness;           // 1200
-    private const float C = CarConstants.SpringDamping;             // 75
+    private const float K = CarConstants.SpringStiffness;           // 1500
+    private const float C = CarConstants.SpringDamping;             // 100
     private const float MaxForce = CarConstants.MaxSpringForce;     // 2000
     private const float WheelR = CarConstants.WheelRadius;          // 0.25
 
@@ -60,7 +60,7 @@ public class SuspensionSpringTests
         };
         var result = Compute(input);
 
-        float expectedForce = K * 0.1f; // 80 N
+        float expectedForce = K * 0.1f;
         Assert.Equal(expectedForce, result.Force, 0.01f);
         Assert.True(result.Grounded);
     }
@@ -90,7 +90,7 @@ public class SuspensionSpringTests
         };
         var result = Compute(input);
 
-        Assert.Equal(C * 1.0f, result.Force, 0.01f); // 60 N from damping alone
+        Assert.Equal(C * 1.0f, result.Force, 0.01f);
     }
 
     [Fact]
@@ -142,7 +142,6 @@ public class SuspensionSpringTests
         };
         var result = Compute(input);
 
-        // kx + cv = 1200*0.5 + 75*100 = 600 + 7500 = 8100 → clamped to 2000
         Assert.Equal(MaxForce, result.Force);
     }
 
@@ -202,7 +201,7 @@ public class CarPhysicsLogicTests
     public void Throttle_ProducesForwardForce()
     {
         var input = new CarInput { Throttle = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 0f, 0f);
 
         Assert.Equal(0f, result.DriveForceX);
         Assert.True(result.DriveForceZ < 0); // forward is -Z
@@ -213,9 +212,8 @@ public class CarPhysicsLogicTests
     public void Brake_WhenMoving_OpposeVelocity()
     {
         var input = new CarInput { Brake = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5.0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5.0f, 0f);
 
-        // Brake should push backward (positive Z when forward is -Z)
         Assert.True(result.DriveForceZ > 0);
         Assert.Equal(CarConstants.BrakeForce, result.DriveForceZ, 0.01f);
     }
@@ -224,44 +222,143 @@ public class CarPhysicsLogicTests
     public void Brake_WhenStopped_Reverse()
     {
         var input = new CarInput { Brake = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 0f, 0f);
 
-        // Should reverse (same direction as forward but negative = backward along forward)
         Assert.Equal(CarConstants.ReverseForce, result.DriveForceZ, 0.01f);
     }
 
+    // --- Steering angle ramping ---
+
     [Fact]
-    public void SteerLeft_PositiveTorque()
+    public void SteerLeft_AngleIncreasesOneStep()
     {
         var input = new CarInput { SteerLeft = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, 0f);
 
-        Assert.Equal(CarConstants.SteeringSpeed, result.SteeringYawSpeed, 0.01f);
+        Assert.Equal(CarConstants.SteerAngleStep, result.SteerAngle, 0.001f);
     }
 
     [Fact]
-    public void SteerRight_NegativeTorque()
+    public void SteerRight_AngleDecreasesOneStep()
     {
         var input = new CarInput { SteerRight = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, 0f);
 
-        Assert.Equal(-CarConstants.SteeringSpeed, result.SteeringYawSpeed, 0.01f);
+        Assert.Equal(-CarConstants.SteerAngleStep, result.SteerAngle, 0.001f);
+    }
+
+    [Fact]
+    public void SteerAngle_RampsOverTenFrames()
+    {
+        float angle = 0f;
+        var input = new CarInput { SteerLeft = true };
+        for (int i = 0; i < CarConstants.SteerSteps; i++)
+        {
+            var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, angle);
+            angle = result.SteerAngle;
+        }
+
+        Assert.Equal(CarConstants.MaxSteerAngle, angle, 0.001f);
+    }
+
+    [Fact]
+    public void SteerAngle_ClampedAtMax()
+    {
+        // Already at max, one more frame should stay at max
+        var input = new CarInput { SteerLeft = true };
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, CarConstants.MaxSteerAngle);
+
+        Assert.Equal(CarConstants.MaxSteerAngle, result.SteerAngle, 0.001f);
+    }
+
+    [Fact]
+    public void SteerAngle_ReturnsToCenterWhenReleased()
+    {
+        // Start at full lock, release key
+        float angle = CarConstants.MaxSteerAngle;
+        var input = new CarInput(); // no steering
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, angle);
+
+        Assert.Equal(CarConstants.MaxSteerAngle - CarConstants.SteerAngleStep, result.SteerAngle, 0.001f);
+    }
+
+    [Fact]
+    public void SteerAngle_FullReturnInTenFrames()
+    {
+        float angle = CarConstants.MaxSteerAngle;
+        var input = new CarInput(); // no steering
+        for (int i = 0; i < CarConstants.SteerSteps; i++)
+        {
+            var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, angle);
+            angle = result.SteerAngle;
+        }
+
+        Assert.Equal(0f, angle, 0.001f);
+    }
+
+    // --- Bicycle model yaw rate ---
+
+    [Fact]
+    public void Steering_ZeroSpeedZeroYaw()
+    {
+        // Even with full lock, no yaw when stopped (bicycle model)
+        var input = new CarInput { SteerLeft = true };
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 0f, CarConstants.MaxSteerAngle);
+
+        Assert.Equal(0f, result.SteeringYawSpeed, 0.001f);
+    }
+
+    [Fact]
+    public void Steering_YawProportionalToSpeed()
+    {
+        float angle = CarConstants.MaxSteerAngle / 2f; // 22.5 degrees
+        var input = new CarInput();
+
+        var r1 = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, angle);
+        var r2 = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 10f, angle);
+
+        Assert.Equal(r1.SteeringYawSpeed * 2f, r2.SteeringYawSpeed, 0.01f);
+    }
+
+    [Fact]
+    public void Steering_BicycleModelFormula()
+    {
+        // Hold left so angle doesn't drift — start at an angle that won't change
+        float angle = CarConstants.SteerAngleStep * 5f; // mid-range
+        float speed = 8f;
+        var input = new CarInput { SteerLeft = true }; // keeps angle increasing
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, speed, angle);
+
+        // Angle increased by one step
+        float actualAngle = angle + CarConstants.SteerAngleStep;
+        float expected = (speed * System.MathF.Tan(actualAngle)) / CarConstants.Wheelbase;
+        Assert.Equal(expected, result.SteeringYawSpeed, 0.01f);
     }
 
     [Fact]
     public void Steering_OnlyWhenGrounded()
     {
         var input = new CarInput { SteerLeft = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 5f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 5f, 0.3f);
 
         Assert.Equal(0f, result.SteeringYawSpeed);
+    }
+
+    [Fact]
+    public void SteerAngle_StillUpdatesWhenAirborne()
+    {
+        // Wheel angle should still ramp even when airborne (no yaw, but wheels turn)
+        var input = new CarInput { SteerLeft = true };
+        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 5f, 0f);
+
+        Assert.Equal(CarConstants.SteerAngleStep, result.SteerAngle, 0.001f);
     }
 
     [Fact]
     public void AllAirborne_NoDriveForce()
     {
         var input = new CarInput { Throttle = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 0f, 0f);
 
         Assert.Equal(0f, result.DriveForceX);
         Assert.Equal(0f, result.DriveForceY);
@@ -273,7 +370,7 @@ public class CarPhysicsLogicTests
     public void AllAirborne_NoSuspensionForce()
     {
         var input = new CarInput();
-        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 0f, 0f);
 
         Assert.Equal(0f, result.Wheel0.ForceX);
         Assert.Equal(0f, result.Wheel0.ForceY);
@@ -285,7 +382,7 @@ public class CarPhysicsLogicTests
     {
         var rays = new[] { GroundedWheel(), GroundedWheel(), AirborneWheel(), AirborneWheel() };
         var input = new CarInput();
-        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f, 0f);
 
         Assert.Equal(2, result.GroundedCount);
     }
@@ -293,27 +390,23 @@ public class CarPhysicsLogicTests
     [Fact]
     public void IndependentWheelForces()
     {
-        // Different hit distances → different forces
         var rays = new[]
         {
-            GroundedWheel(0.4f), // more compressed
-            GroundedWheel(0.6f), // less compressed
+            GroundedWheel(0.4f),
+            GroundedWheel(0.6f),
             GroundedWheel(0.4f),
             GroundedWheel(0.6f)
         };
         var input = new CarInput();
-        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f, 0f);
 
-        // Wheel 0 (hit 0.4) should have more force than Wheel 1 (hit 0.6)
         Assert.True(result.Wheel0.ForceY > result.Wheel1.ForceY);
     }
 
     [Fact]
     public void SuspensionForce_AlongSpringAxis_NotSurfaceNormal()
     {
-        // Tilted surface normal should NOT affect force direction
-        // Spring always pushes along local +Y (car's up axis)
-        float nx = 0.0f, ny = 0.866f, nz = 0.5f; // ~30 degree slope
+        float nx = 0.0f, ny = 0.866f, nz = 0.5f;
         var ray = new WheelRayData
         {
             Spring = new SpringInput { Hit = true, HitDistance = 0.4f, VerticalVelocity = 0f },
@@ -321,9 +414,8 @@ public class CarPhysicsLogicTests
         };
         var rays = new[] { ray, GroundedWheel(), GroundedWheel(), GroundedWheel() };
         var input = new CarInput();
-        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f, 0f);
 
-        // Force is purely along Y regardless of surface normal
         Assert.Equal(0f, result.Wheel0.ForceX);
         Assert.Equal(0f, result.Wheel0.ForceZ);
         Assert.True(result.Wheel0.ForceY > 0);
@@ -333,7 +425,7 @@ public class CarPhysicsLogicTests
     public void NoInput_NoDriveForce()
     {
         var input = new CarInput();
-        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f);
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f, 0f);
 
         Assert.Equal(0f, result.DriveForceX);
         Assert.Equal(0f, result.DriveForceY);
@@ -346,7 +438,7 @@ public class CarPhysicsLogicTests
     {
         var rays = new[] { GroundedWheel(), AirborneWheel(), AirborneWheel(), AirborneWheel() };
         var input = new CarInput { Throttle = true };
-        var result = CarPhysicsLogic.ComputePhysics(input, rays, 1, 0, 0, 0f);
+        var result = CarPhysicsLogic.ComputePhysics(input, rays, 1, 0, 0, 0f, 0f);
 
         Assert.Equal(CarConstants.ThrottleForce, result.DriveForceX, 0.01f);
         Assert.Equal(1, result.GroundedCount);
