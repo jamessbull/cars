@@ -126,7 +126,7 @@ public partial class TrackGridMap : Node3D
 
     private void PositionCamera()
     {
-        var camera = GetParent().GetNode<Camera3D>("Camera3D");
+        var camera = GetParent().GetNodeOrNull<Camera3D>("Camera3D");
         if (camera != null)
         {
             // GridMap with center_x/z offsets cells by half cell_size, so track center shifts

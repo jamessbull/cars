@@ -1,15 +1,16 @@
-[gd_scene format=3 uid="uid://b6mqinx3m34x2"]
+[gd_scene load_steps=2 format=3 uid="uid://b6mqinx3m34x2"]
 
 [ext_resource type="Script" uid="uid://ciaguu5b5bh1w" path="res://TrackGridMap.cs" id="1_track"]
+[ext_resource type="PackedScene" path="res://car.tscn" id="2_car"]
 
 [node name="Track" type="Node3D" unique_id=929885475]
 
 [node name="TrackGridMap" type="Node3D" parent="." unique_id=1524061120]
 script = ExtResource("1_track")
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=580229057]
-transform = Transform3D(0.66288143, 0.3730773, -0.64915454, 0, 0.867014, 0.4982839, 0.7487244, -0.33030316, 0.5747275, 0.21655321, 2.747867, 47.60106)
-
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2090592358]
 transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 5, 0)
 shadow_enabled = true
+
+[node name="Car" parent="." instance=ExtResource("2_car")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1.5, 1)
