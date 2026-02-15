@@ -2,7 +2,6 @@ using Godot;
 
 public partial class CarBody : RigidBody3D
 {
-    private RayCast3D[] _rays = new RayCast3D[4];
     private MeshInstance3D[] _wheels = new MeshInstance3D[4];
 
     // Wheel attachment points relative to chassis center
@@ -14,13 +13,19 @@ public partial class CarBody : RigidBody3D
         new Vector3(CarConstants.TrackHalf, 0, CarConstants.WheelBaseHalf),   // RR
     };
 
+    // How far above each wheel attachment to start the ray (must be above any terrain)
+    private const float RaycastCeilingOffset = 10f;
+    // Maximum angular velocity on pitch/roll axes (rad/s) — prevents wild spinning
+    private const float MaxPitchRollSpeed = 3f;
+    // Angular damping on pitch/roll per frame — bleeds off spin
+    private const float PitchRollDamping = 0.9f;
+
     public override void _Ready()
     {
         Mass = CarConstants.ChassisMass;
 
         for (int i = 0; i < 4; i++)
         {
-            _rays[i] = GetNode<RayCast3D>($"Ray{i}");
             _wheels[i] = GetNode<MeshInstance3D>($"Wheel{i}");
         }
     }
@@ -35,10 +40,11 @@ public partial class CarBody : RigidBody3D
             SteerRight = Input.IsActionPressed("ui_right")
         };
 
+        var spaceState = GetWorld3D().DirectSpaceState;
         var rays = new WheelRayData[4];
         for (int i = 0; i < 4; i++)
         {
-            rays[i] = GatherRayData(i);
+            rays[i] = GatherRayData(i, spaceState);
         }
 
         var forward = -GlobalTransform.Basis.Z;
@@ -49,7 +55,7 @@ public partial class CarBody : RigidBody3D
             forward.X, forward.Y, forward.Z,
             speed);
 
-        // Apply suspension forces at wheel attachment points
+        // Apply suspension forces at wheel attachment points — always world-up
         ApplyWheelForce(result.Wheel0, 0);
         ApplyWheelForce(result.Wheel1, 1);
         ApplyWheelForce(result.Wheel2, 2);
@@ -59,43 +65,82 @@ public partial class CarBody : RigidBody3D
         var driveForce = new Vector3(result.DriveForceX, result.DriveForceY, result.DriveForceZ);
         ApplyCentralForce(driveForce);
 
-        // Apply steering torque
-        if (result.SteeringTorqueY != 0f)
-        {
-            ApplyTorque(new Vector3(0, result.SteeringTorqueY, 0));
-        }
+        // Steering: directly set Y angular velocity (stops immediately on key release)
+        // Also damp and clamp pitch/roll to prevent wild spinning
+        var av = AngularVelocity;
+        float dampedX = av.X * PitchRollDamping;
+        float dampedZ = av.Z * PitchRollDamping;
+        dampedX = Mathf.Clamp(dampedX, -MaxPitchRollSpeed, MaxPitchRollSpeed);
+        dampedZ = Mathf.Clamp(dampedZ, -MaxPitchRollSpeed, MaxPitchRollSpeed);
+        AngularVelocity = new Vector3(dampedX, result.SteeringYawSpeed, dampedZ);
 
         // Position wheel meshes
         PositionWheels(result);
     }
 
-    private WheelRayData GatherRayData(int index)
+    private WheelRayData GatherRayData(int index, PhysicsDirectSpaceState3D spaceState)
     {
-        var ray = _rays[index];
         var data = new WheelRayData();
 
-        if (ray.IsColliding())
+        // Get wheel attachment point in world space
+        var attachWorld = GlobalTransform * WheelPositions[index];
+
+        // Cast ray from well above the wheel straight down in world space
+        var from = new Vector3(attachWorld.X, attachWorld.Y + RaycastCeilingOffset, attachWorld.Z);
+        var to = new Vector3(attachWorld.X, attachWorld.Y - RaycastCeilingOffset, attachWorld.Z);
+
+        var query = PhysicsRayQueryParameters3D.Create(from, to, 1); // mask = layer 1 (track)
+        query.HitFromInside = true;
+        query.HitBackFaces = true;
+        var hit = spaceState.IntersectRay(query);
+
+        if (hit.Count > 0)
         {
-            var origin = ray.GlobalPosition;
-            var hitPoint = ray.GetCollisionPoint();
-            var hitNormal = ray.GetCollisionNormal();
-            float hitDist = origin.DistanceTo(hitPoint);
+            var hitPoint = (Vector3)hit["position"];
+            var hitNormal = (Vector3)hit["normal"];
 
-            // Compute vertical velocity at this attachment point
-            var attachLocal = WheelPositions[index];
-            var velocity = GetVelocityAtLocalPoint(attachLocal);
-            var downDir = -GlobalTransform.Basis.Y;
-            float vertVel = velocity.Dot(downDir);
+            // Vertical distance from wheel attachment point down to ground
+            float hitDist = attachWorld.Y - hitPoint.Y;
 
-            data.Spring = new SpringInput
+            if (hitDist >= 0 && hitDist <= CarConstants.RayLength)
             {
-                Hit = true,
-                HitDistance = hitDist,
-                VerticalVelocity = vertVel
-            };
-            data.NormalX = hitNormal.X;
-            data.NormalY = hitNormal.Y;
-            data.NormalZ = hitNormal.Z;
+                // Normal suspension range — compute damping using world-vertical velocity
+                var velocity = GetVelocityAtLocalPoint(WheelPositions[index]);
+                float vertVel = -velocity.Y; // positive = moving down in world space
+
+                data.Spring = new SpringInput
+                {
+                    Hit = true,
+                    HitDistance = hitDist,
+                    VerticalVelocity = vertVel
+                };
+                data.NormalX = hitNormal.X;
+                data.NormalY = hitNormal.Y;
+                data.NormalZ = hitNormal.Z;
+            }
+            else if (hitDist < 0)
+            {
+                // Attachment point is below ground — fully compressed spring
+                // Use a small positive hitDist so spring produces max force to push car up
+                // Damping based on downward velocity to resist further penetration
+                var velocity = GetVelocityAtLocalPoint(WheelPositions[index]);
+                float vertVel = -velocity.Y;
+
+                data.Spring = new SpringInput
+                {
+                    Hit = true,
+                    HitDistance = 0.01f,
+                    VerticalVelocity = Mathf.Max(vertVel, 0f) // only resist downward motion
+                };
+                data.NormalX = hitNormal.X;
+                data.NormalY = hitNormal.Y;
+                data.NormalZ = hitNormal.Z;
+            }
+            else
+            {
+                // Ground is beyond ray reach
+                data.Spring = new SpringInput { Hit = false };
+            }
         }
         else
         {
@@ -115,10 +160,13 @@ public partial class CarBody : RigidBody3D
     {
         if (!wheel.Grounded) return;
 
-        var force = new Vector3(wheel.ForceX, wheel.ForceY, wheel.ForceZ);
+        // Spring force is always WORLD UP — never rotated with the car.
+        // This prevents positive feedback: tilt → horizontal force → more tilt.
+        // Different compression at each wheel naturally pitches/rolls the car to match terrain.
+        var worldForce = Vector3.Up * wheel.ForceY;
         var attachWorld = GlobalTransform * WheelPositions[index];
         var offset = attachWorld - GlobalPosition;
-        ApplyForce(force, offset);
+        ApplyForce(worldForce, offset);
     }
 
     private void PositionWheels(CarPhysicsResult result)

@@ -3,10 +3,10 @@ namespace Tests;
 public class SuspensionSpringTests
 {
     private const float Rest = CarConstants.SpringRestLength;      // 0.5
-    private const float K = CarConstants.SpringStiffness;           // 800
-    private const float C = CarConstants.SpringDamping;             // 60
+    private const float K = CarConstants.SpringStiffness;           // 1200
+    private const float C = CarConstants.SpringDamping;             // 75
     private const float MaxForce = CarConstants.MaxSpringForce;     // 2000
-    private const float WheelR = CarConstants.WheelRadius;          // 0.15
+    private const float WheelR = CarConstants.WheelRadius;          // 0.25
 
     private static SpringResult Compute(SpringInput input) =>
         SuspensionSpring.ComputeForce(input, Rest, K, C, MaxForce, WheelR);
@@ -96,17 +96,21 @@ public class SuspensionSpringTests
     [Fact]
     public void DampingReducesForce_WhenMovingUp()
     {
-        float hitDist = (Rest - 0.2f) + WheelR; // compression = 0.2 → spring force = 160
+        // High compression so spring force exceeds damping at moderate extension speed
+        float hitDist = (Rest - 0.4f) + WheelR; // compression = 0.4
         var input = new SpringInput
         {
             Hit = true,
             HitDistance = hitDist,
-            VerticalVelocity = -1.0f // moving up (extending)
+            VerticalVelocity = -0.5f // moving up (extending) slowly
         };
         var result = Compute(input);
 
-        float expected = K * 0.2f + C * (-1.0f); // 160 - 60 = 100
+        float withoutDamping = K * 0.4f;
+        float expected = K * 0.4f + C * (-0.5f);
+        Assert.True(expected > 0, "Test setup: spring must exceed damping");
         Assert.Equal(expected, result.Force, 0.01f);
+        Assert.True(result.Force < withoutDamping); // damping reduced the force
     }
 
     [Fact]
@@ -138,7 +142,7 @@ public class SuspensionSpringTests
         };
         var result = Compute(input);
 
-        // kx + cv = 800*0.5 + 60*100 = 400 + 6000 = 6400 → clamped to 2000
+        // kx + cv = 1200*0.5 + 75*100 = 600 + 7500 = 8100 → clamped to 2000
         Assert.Equal(MaxForce, result.Force);
     }
 
@@ -232,7 +236,7 @@ public class CarPhysicsLogicTests
         var input = new CarInput { SteerLeft = true };
         var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f);
 
-        Assert.Equal(CarConstants.SteeringTorque, result.SteeringTorqueY, 0.01f);
+        Assert.Equal(CarConstants.SteeringSpeed, result.SteeringYawSpeed, 0.01f);
     }
 
     [Fact]
@@ -241,7 +245,7 @@ public class CarPhysicsLogicTests
         var input = new CarInput { SteerRight = true };
         var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 5f);
 
-        Assert.Equal(-CarConstants.SteeringTorque, result.SteeringTorqueY, 0.01f);
+        Assert.Equal(-CarConstants.SteeringSpeed, result.SteeringYawSpeed, 0.01f);
     }
 
     [Fact]
@@ -250,7 +254,7 @@ public class CarPhysicsLogicTests
         var input = new CarInput { SteerLeft = true };
         var result = CarPhysicsLogic.ComputePhysics(input, AllAirborne(), 0, 0, -1, 5f);
 
-        Assert.Equal(0f, result.SteeringTorqueY);
+        Assert.Equal(0f, result.SteeringYawSpeed);
     }
 
     [Fact]
@@ -305,9 +309,10 @@ public class CarPhysicsLogicTests
     }
 
     [Fact]
-    public void SuspensionForce_AlongSurfaceNormal()
+    public void SuspensionForce_AlongSpringAxis_NotSurfaceNormal()
     {
-        // Tilted surface normal
+        // Tilted surface normal should NOT affect force direction
+        // Spring always pushes along local +Y (car's up axis)
         float nx = 0.0f, ny = 0.866f, nz = 0.5f; // ~30 degree slope
         var ray = new WheelRayData
         {
@@ -318,9 +323,9 @@ public class CarPhysicsLogicTests
         var input = new CarInput();
         var result = CarPhysicsLogic.ComputePhysics(input, rays, 0, 0, -1, 0f);
 
-        // Force should have a Z component due to tilted normal
-        Assert.True(result.Wheel0.ForceZ > 0);
-        // Y component should be proportional to normal Y
+        // Force is purely along Y regardless of surface normal
+        Assert.Equal(0f, result.Wheel0.ForceX);
+        Assert.Equal(0f, result.Wheel0.ForceZ);
         Assert.True(result.Wheel0.ForceY > 0);
     }
 
@@ -333,7 +338,7 @@ public class CarPhysicsLogicTests
         Assert.Equal(0f, result.DriveForceX);
         Assert.Equal(0f, result.DriveForceY);
         Assert.Equal(0f, result.DriveForceZ);
-        Assert.Equal(0f, result.SteeringTorqueY);
+        Assert.Equal(0f, result.SteeringYawSpeed);
     }
 
     [Fact]

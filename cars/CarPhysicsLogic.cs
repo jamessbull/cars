@@ -44,8 +44,8 @@ public struct CarPhysicsResult
     public WheelResult Wheel0, Wheel1, Wheel2, Wheel3;
     /// <summary>Drive force vector to apply at the chassis center (world space).</summary>
     public float DriveForceX, DriveForceY, DriveForceZ;
-    /// <summary>Steering torque around Y axis.</summary>
-    public float SteeringTorqueY;
+    /// <summary>Target angular velocity around Y axis (rad/s). 0 = no steering.</summary>
+    public float SteeringYawSpeed;
     /// <summary>Number of wheels currently grounded.</summary>
     public int GroundedCount;
 }
@@ -117,13 +117,13 @@ public static class CarPhysicsLogic
             result.DriveForceY = forwardY * driveForce;
             result.DriveForceZ = forwardZ * driveForce;
 
-            // Steering torque
+            // Steering: target angular velocity (immediate, stops when key released)
             float steer = 0f;
             if (input.SteerLeft)
-                steer += CarConstants.SteeringTorque;
+                steer += CarConstants.SteeringSpeed;
             if (input.SteerRight)
-                steer -= CarConstants.SteeringTorque;
-            result.SteeringTorqueY = steer;
+                steer -= CarConstants.SteeringSpeed;
+            result.SteeringYawSpeed = steer;
         }
 
         return result;
@@ -146,10 +146,12 @@ public static class CarPhysicsLogic
 
         if (spring.Grounded)
         {
-            // Apply force along surface normal
-            result.ForceX = ray.NormalX * spring.Force;
-            result.ForceY = ray.NormalY * spring.Force;
-            result.ForceZ = ray.NormalZ * spring.Force;
+            // Spring pushes along its own axis (car's local up = +Y in logic space).
+            // Surface normal is NOT used for spring force — only matters for
+            // tire grip/traction which is not yet modeled.
+            result.ForceX = 0f;
+            result.ForceY = spring.Force;
+            result.ForceZ = 0f;
         }
 
         return result;
