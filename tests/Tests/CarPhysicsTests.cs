@@ -336,6 +336,16 @@ public class CarPhysicsLogicTests
     }
 
     [Fact]
+    public void Steering_YawClampedAtMaxSpeed()
+    {
+        // At high speed with full lock, yaw should be clamped to MaxYawSpeed
+        var input = new CarInput { SteerLeft = true };
+        var result = CarPhysicsLogic.ComputePhysics(input, AllGrounded(), 0, 0, -1, 50f, CarConstants.MaxSteerAngle);
+
+        Assert.Equal(CarConstants.MaxYawSpeed, result.SteeringYawSpeed, 0.01f);
+    }
+
+    [Fact]
     public void Steering_OnlyWhenGrounded()
     {
         var input = new CarInput { SteerLeft = true };
@@ -443,4 +453,6 @@ public class CarPhysicsLogicTests
         Assert.Equal(CarConstants.ThrottleForce, result.DriveForceX, 0.01f);
         Assert.Equal(1, result.GroundedCount);
     }
+
+
 }

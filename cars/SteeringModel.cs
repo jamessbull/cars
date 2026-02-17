@@ -47,9 +47,13 @@ public static class SteeringModel
         result.SteerAngle = angle;
 
         // Bicycle model: yaw_rate = speed * tan(angle) / wheelbase
-        // Only produces yaw when grounded
+        // Clamped to MaxYawSpeed so turning rate stays reasonable at high speed.
+        // Only produces yaw when grounded.
         if (grounded)
-            result.YawSpeed = (speed * (float)Math.Tan(angle)) / CarConstants.Wheelbase;
+        {
+            float yaw = (speed * (float)Math.Tan(angle)) / CarConstants.Wheelbase;
+            result.YawSpeed = Math.Clamp(yaw, -CarConstants.MaxYawSpeed, CarConstants.MaxYawSpeed);
+        }
 
         return result;
     }

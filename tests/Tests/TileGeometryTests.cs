@@ -166,6 +166,85 @@ public class TileGeometryTests
     }
 
     [Fact]
+    public void Gravel_SameGeometryAsFlat()
+    {
+        var gravel = TileGeometry.GenerateTile(TileType.Gravel);
+        var flat = TileGeometry.GenerateTile(TileType.Flat);
+        Assert.Equal(flat.Vertices.Length, gravel.Vertices.Length);
+        Assert.Equal(flat.Indices.Length, gravel.Indices.Length);
+    }
+
+    [Fact]
+    public void Gravel_TopFaceAtYZero()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Gravel);
+        for (int i = 0; i < 4; i++)
+        {
+            Assert.Equal(0f, tile.Vertices[i * 3 + 1]);
+        }
+    }
+
+    [Fact]
+    public void Fence_Has28Verts84Floats()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        // 7 faces (ground top/bottom + wall front/back/top/left/right) * 4 verts = 28 verts, 84 floats
+        Assert.Equal(84, tile.Vertices.Length);
+        Assert.Equal(84, tile.Normals.Length);
+    }
+
+    [Fact]
+    public void Fence_Has42Indices()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        // 7 faces * 2 tris * 3 indices = 42
+        Assert.Equal(42, tile.Indices.Length);
+    }
+
+    [Fact]
+    public void Fence_MaxYEqualsFenceHeight()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        float maxY = float.MinValue;
+        for (int i = 1; i < tile.Vertices.Length; i += 3)
+        {
+            if (tile.Vertices[i] > maxY) maxY = tile.Vertices[i];
+        }
+        Assert.Equal(TileGeometry.FenceHeight, maxY);
+    }
+
+    [Fact]
+    public void Fence_WallNormalFacesPositiveZ()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        // Wall verts are indices 8-11 (3rd face), check their normals
+        for (int i = 8; i < 12; i++)
+        {
+            Assert.Equal(0f, tile.Normals[i * 3]);     // nx
+            Assert.Equal(0f, tile.Normals[i * 3 + 1]); // ny
+            Assert.Equal(1f, tile.Normals[i * 3 + 2]); // nz
+        }
+    }
+
+    [Fact]
+    public void Fence_IndicesInRange()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        int vertexCount = tile.Vertices.Length / 3;
+        foreach (int idx in tile.Indices)
+        {
+            Assert.InRange(idx, 0, vertexCount - 1);
+        }
+    }
+
+    [Fact]
+    public void Fence_AllFacesHaveCorrectWinding()
+    {
+        var tile = TileGeometry.GenerateTile(TileType.Fence);
+        VerifyAllWindings(tile);
+    }
+
+    [Fact]
     public void CellSize_HasExpectedValues()
     {
         Assert.Equal(2f, TileGeometry.CellWidth);

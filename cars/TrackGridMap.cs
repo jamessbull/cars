@@ -47,11 +47,28 @@ public partial class TrackGridMap : Node3D
         rampMaterial.Roughness = 0.8f;
         rampMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
 
+        var gravelMaterial = new StandardMaterial3D();
+        gravelMaterial.AlbedoColor = new Color(0.6f, 0.45f, 0.25f);
+        gravelMaterial.Roughness = 1.0f;
+        gravelMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+
+        var fenceMaterial = new StandardMaterial3D();
+        fenceMaterial.AlbedoColor = new Color(0.4f, 0.4f, 0.4f);
+        fenceMaterial.Roughness = 0.9f;
+        fenceMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+
         foreach (TileType type in System.Enum.GetValues<TileType>())
         {
             int id = (int)type;
             var meshData = TileGeometry.GenerateTile(type);
-            var mat = type == TileType.Flat ? flatMaterial : rampMaterial;
+            var mat = type switch
+            {
+                TileType.Flat => flatMaterial,
+                TileType.Ramp => rampMaterial,
+                TileType.Gravel => gravelMaterial,
+                TileType.Fence => fenceMaterial,
+                _ => flatMaterial
+            };
 
             var arrayMesh = ConvertToArrayMesh(meshData, mat);
             var collisionShape = CreateCollisionShape(meshData);

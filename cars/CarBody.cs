@@ -4,6 +4,7 @@ public partial class CarBody : RigidBody3D
 {
     private MeshInstance3D[] _wheels = new MeshInstance3D[4];
     private float _steerAngle; // current front wheel angle (rad, positive = left)
+    private GridMap _gridMap;
 
     // Wheel attachment points relative to chassis center
     private static readonly Vector3[] WheelPositions = new Vector3[]
@@ -24,10 +25,25 @@ public partial class CarBody : RigidBody3D
     public override void _Ready()
     {
         Mass = CarConstants.ChassisMass;
+        ContinuousCd = true; // prevent tunneling through walls at high speed
 
         for (int i = 0; i < 4; i++)
         {
             _wheels[i] = GetNode<MeshInstance3D>($"Wheel{i}");
+        }
+
+        // Cache GridMap reference (TrackGridMap sibling's child)
+        var trackGridMap = GetParent().GetNodeOrNull<Node3D>("TrackGridMap");
+        if (trackGridMap != null)
+        {
+            foreach (var child in trackGridMap.GetChildren())
+            {
+                if (child is GridMap gm)
+                {
+                    _gridMap = gm;
+                    break;
+                }
+            }
         }
     }
 
@@ -77,6 +93,20 @@ public partial class CarBody : RigidBody3D
             float flatSpeed = LinearVelocity.Dot(flatForward);
             float verticalSpeed = LinearVelocity.Y;
             LinearVelocity = flatForward * flatSpeed + Vector3.Up * verticalSpeed;
+
+            // Rolling resistance — always applies when grounded
+            LinearVelocity *= CarConstants.RollingDragFactor;
+
+            // Apply extra gravel drag if on a gravel tile
+            if (_gridMap != null)
+            {
+                var mapPos = _gridMap.LocalToMap(_gridMap.ToLocal(GlobalPosition));
+                int cellItem = _gridMap.GetCellItem(mapPos);
+                if (cellItem == (int)TileType.Gravel)
+                {
+                    LinearVelocity *= CarConstants.GravelDragFactor;
+                }
+            }
         }
 
         // Steering: directly set Y angular velocity (stops immediately on key release)
@@ -127,24 +157,6 @@ public partial class CarBody : RigidBody3D
                     Hit = true,
                     HitDistance = hitDist,
                     VerticalVelocity = vertVel
-                };
-                data.NormalX = hitNormal.X;
-                data.NormalY = hitNormal.Y;
-                data.NormalZ = hitNormal.Z;
-            }
-            else if (hitDist < 0)
-            {
-                // Attachment point is below ground — fully compressed spring
-                // Use a small positive hitDist so spring produces max force to push car up
-                // Damping based on downward velocity to resist further penetration
-                var velocity = GetVelocityAtLocalPoint(WheelPositions[index]);
-                float vertVel = -velocity.Y;
-
-                data.Spring = new SpringInput
-                {
-                    Hit = true,
-                    HitDistance = 0.01f,
-                    VerticalVelocity = Mathf.Max(vertVel, 0f) // only resist downward motion
                 };
                 data.NormalX = hitNormal.X;
                 data.NormalY = hitNormal.Y;

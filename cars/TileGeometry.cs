@@ -1,7 +1,9 @@
 public enum TileType
 {
     Flat,
-    Ramp
+    Ramp,
+    Gravel,
+    Fence
 }
 
 public struct TileMeshData
@@ -23,11 +25,15 @@ public static class TileGeometry
         {
             TileType.Flat => GenerateFlat(),
             TileType.Ramp => GenerateRamp(),
+            TileType.Gravel => GenerateGravel(),
+            TileType.Fence => GenerateFence(),
             _ => throw new System.ArgumentOutOfRangeException(nameof(type))
         };
     }
 
     public const float FlatThickness = 0.05f;
+    public const float FenceHeight = 1.5f;
+    public const float FenceThickness = 0.3f;
 
     private static TileMeshData GenerateFlat()
     {
@@ -101,6 +107,100 @@ public static class TileGeometry
         AddVertex(vertices, normals, -hw, h, -hd, 0, -ny, -nz);
         AddTriangle(indices, vi, 0, 2, 1);
         AddTriangle(indices, vi, 0, 3, 2);
+
+        return new TileMeshData
+        {
+            Vertices = vertices.ToArray(),
+            Normals = normals.ToArray(),
+            Indices = indices.ToArray()
+        };
+    }
+
+    private static TileMeshData GenerateGravel()
+    {
+        // Same geometry as flat — thin slab, top + bottom
+        return GenerateFlat();
+    }
+
+    private static TileMeshData GenerateFence()
+    {
+        // Flat ground slab + thick wall box on -Z edge for solid collision.
+        // Wall is FenceThickness deep, centered on Z=-hd.
+        float hw = CellWidth / 2f;
+        float hd = CellDepth / 2f;
+        float t = FlatThickness;
+        float fh = FenceHeight;
+        float wt = FenceThickness;
+        float wz0 = -hd - wt / 2f; // wall back face Z
+        float wz1 = -hd + wt / 2f; // wall front face Z
+
+        var vertices = new System.Collections.Generic.List<float>();
+        var normals = new System.Collections.Generic.List<float>();
+        var indices = new System.Collections.Generic.List<int>();
+
+        int vi = 0;
+
+        // Ground top face (Y=0, facing up)
+        AddVertex(vertices, normals, -hw, 0,  hd, 0, 1, 0);
+        AddVertex(vertices, normals,  hw, 0,  hd, 0, 1, 0);
+        AddVertex(vertices, normals,  hw, 0, -hd, 0, 1, 0);
+        AddVertex(vertices, normals, -hw, 0, -hd, 0, 1, 0);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Ground bottom face (Y=-t, facing down)
+        AddVertex(vertices, normals, -hw, -t,  hd, 0, -1, 0);
+        AddVertex(vertices, normals, -hw, -t, -hd, 0, -1, 0);
+        AddVertex(vertices, normals,  hw, -t, -hd, 0, -1, 0);
+        AddVertex(vertices, normals,  hw, -t,  hd, 0, -1, 0);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Wall front face (+Z side, facing inward)
+        AddVertex(vertices, normals, -hw, 0,  wz1, 0, 0, 1);
+        AddVertex(vertices, normals,  hw, 0,  wz1, 0, 0, 1);
+        AddVertex(vertices, normals,  hw, fh, wz1, 0, 0, 1);
+        AddVertex(vertices, normals, -hw, fh, wz1, 0, 0, 1);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Wall back face (-Z side, facing outward)
+        AddVertex(vertices, normals,  hw, 0,  wz0, 0, 0, -1);
+        AddVertex(vertices, normals, -hw, 0,  wz0, 0, 0, -1);
+        AddVertex(vertices, normals, -hw, fh, wz0, 0, 0, -1);
+        AddVertex(vertices, normals,  hw, fh, wz0, 0, 0, -1);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Wall top face (Y=fh, facing up)
+        AddVertex(vertices, normals, -hw, fh, wz0, 0, 1, 0);
+        AddVertex(vertices, normals, -hw, fh, wz1, 0, 1, 0);
+        AddVertex(vertices, normals,  hw, fh, wz1, 0, 1, 0);
+        AddVertex(vertices, normals,  hw, fh, wz0, 0, 1, 0);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Wall left face (X=-hw, facing -X)
+        AddVertex(vertices, normals, -hw, 0,  wz0, -1, 0, 0);
+        AddVertex(vertices, normals, -hw, 0,  wz1, -1, 0, 0);
+        AddVertex(vertices, normals, -hw, fh, wz1, -1, 0, 0);
+        AddVertex(vertices, normals, -hw, fh, wz0, -1, 0, 0);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
+        vi += 4;
+
+        // Wall right face (X=+hw, facing +X)
+        AddVertex(vertices, normals, hw, 0,  wz1, 1, 0, 0);
+        AddVertex(vertices, normals, hw, 0,  wz0, 1, 0, 0);
+        AddVertex(vertices, normals, hw, fh, wz0, 1, 0, 0);
+        AddVertex(vertices, normals, hw, fh, wz1, 1, 0, 0);
+        AddTriangle(indices, vi, 0, 1, 2);
+        AddTriangle(indices, vi, 0, 2, 3);
 
         return new TileMeshData
         {
