@@ -35,20 +35,42 @@ public static class TrackLayout
     }
 
     /// <summary>
-    /// Returns the "The Hump" demo track: 7 tiles along X axis with a ramp up, flat top, and ramp down.
+    /// Returns the demo track: flat road with RampEntry + Ramp for testing.
     /// </summary>
     public static TilePlacement[] GetDemoTrack()
     {
-        // Base track pattern (single lane along X axis)
+        // Test track: flat + RampEntry(3) + Ramp(7) + RampExit(3) + Flat at top
+        // gridY: Entry=0 rises 3, Ramp=3 rises 7, Exit=10 rises 3, Flat=13
         var baseTiles = new TilePlacement[]
         {
-            new TilePlacement { Type = TileType.Flat, GridX = 0, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            new TilePlacement { Type = TileType.Flat, GridX = 1, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            new TilePlacement { Type = TileType.Ramp, GridX = 2, GridY = 0, GridZ = 0, Facing = CardinalDirection.East },
-            new TilePlacement { Type = TileType.Flat, GridX = 3, GridY = 1, GridZ = 0, Facing = CardinalDirection.North },
-            new TilePlacement { Type = TileType.Ramp, GridX = 4, GridY = 0, GridZ = 0, Facing = CardinalDirection.West },
-            new TilePlacement { Type = TileType.Flat, GridX = 5, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
-            new TilePlacement { Type = TileType.Flat, GridX = 6, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.Flat,      GridX = 0, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.Flat,      GridX = 1, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            
+            new TilePlacement { Type = TileType.RampEntry, GridX = 2, GridY = 0,  GridZ = 0, Facing = CardinalDirection.East },
+            //new TilePlacement { Type = TileType.Flat, GridX = 2, GridY = 0,  GridZ = 0, Facing = CardinalDirection.East },
+            
+            new TilePlacement { Type = TileType.Ramp,      GridX = 3, GridY = 3,  GridZ = 0, Facing = CardinalDirection.East },
+            new TilePlacement { Type = TileType.Flat,      GridX = 3, GridY = 0,  GridZ = 0, Facing = CardinalDirection.East },
+            
+            new TilePlacement { Type = TileType.RampExit,  GridX = 4, GridY = 10, GridZ = 0, Facing = CardinalDirection.East },
+            new TilePlacement { Type = TileType.Flat,  GridX = 4, GridY = 0, GridZ = 0, Facing = CardinalDirection.East },
+            
+            new TilePlacement { Type = TileType.Flat,      GridX = 5, GridY = 13, GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.Flat,      GridX = 5, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
+            
+            
+            
+            new TilePlacement { Type = TileType.Flat,      GridX = 6, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.RampExit,  GridX = 6, GridY = 10,  GridZ = 0, Facing = CardinalDirection.West },
+            
+            new TilePlacement { Type = TileType.Flat,      GridX = 7, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.Ramp,      GridX = 7, GridY = 3,  GridZ = 0, Facing = CardinalDirection.West },
+            
+            new TilePlacement { Type = TileType.Flat,      GridX = 8, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.RampEntry,      GridX = 8, GridY = 0,  GridZ = 0, Facing = CardinalDirection.West },
+            
+            new TilePlacement { Type = TileType.Flat,      GridX = 9, GridY = 0,  GridZ = 0, Facing = CardinalDirection.North },
+            new TilePlacement { Type = TileType.Flat,      GridX = 10, GridY = 0, GridZ = 0, Facing = CardinalDirection.North },
         };
 
         // Replicate across 3 lanes: Z = -1, 0, +1
@@ -68,37 +90,67 @@ public static class TrackLayout
             }
         }
 
-        // Gravel run-off: 2 rows each side (Z=-3..-2, Z=+2..+3) across X=-1..7
-        for (int x = -1; x <= 7; x++)
+        // Gravel run-off: 2 rows each side (Z=-3..-2, Z=+2..+3) across X=-1..11
+        for (int x = -1; x <= 11; x++)
         {
-            for (int z = -3; z <= -2; z++)
+            for (int z = -3; z <= -3; z++)
                 result.Add(new TilePlacement { Type = TileType.Gravel, GridX = x, GridY = 0, GridZ = z, Facing = CardinalDirection.North });
-            for (int z = 2; z <= 3; z++)
+            for (int z = 3; z <= 3; z++)
                 result.Add(new TilePlacement { Type = TileType.Gravel, GridX = x, GridY = 0, GridZ = z, Facing = CardinalDirection.North });
         }
-
-        // Gravel at track ends: X=-1 and X=7 for Z=-1..+1
+        // left hand side
+        
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = -1, GridY = 0, GridZ = 2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 0, GridY = 0, GridZ = 2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 1, GridY = 0, GridZ = 2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.RampEntryCorner, GridX = 2, GridY = 0, GridZ = 2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.RampEntryCorner, GridX = 3, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 4, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 5, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 6, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 7, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 8, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 9, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 10, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 11, GridY = 0, GridZ = 2, Facing = CardinalDirection.West });
+        
+        //right side
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = -1, GridY = 0, GridZ = -2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 0, GridY = 0, GridZ = -2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 1, GridY = 0, GridZ = -2, Facing = CardinalDirection.North });
+        result.Add(new TilePlacement() {Type = TileType.RampEntryCorner, GridX = 2, GridY = 0, GridZ = -2, Facing = CardinalDirection.East });
+        result.Add(new TilePlacement() {Type = TileType.RampEntryCorner, GridX = 3, GridY = 0, GridZ = -2, Facing = CardinalDirection.South });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 4, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 5, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 6, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 7, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 8, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 9, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 10, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        result.Add(new TilePlacement() {Type = TileType.Flat, GridX = 11, GridY = 0, GridZ = -2, Facing = CardinalDirection.West });
+        
+        // Gravel at track ends: X=-1 and X=11 for Z=-1..+1
         for (int z = -1; z <= 1; z++)
         {
             result.Add(new TilePlacement { Type = TileType.Gravel, GridX = -1, GridY = 0, GridZ = z, Facing = CardinalDirection.North });
-            result.Add(new TilePlacement { Type = TileType.Gravel, GridX = 7, GridY = 0, GridZ = z, Facing = CardinalDirection.North });
+            result.Add(new TilePlacement { Type = TileType.Gravel, GridX = 11, GridY = 0, GridZ = z, Facing = CardinalDirection.North });
         }
 
         // Fence border ring
-        // West wall (X=-2): Z=-4..+4, wall faces East (+X) → canonical wall on -Z rotated to face +X = East
+        // West wall (X=-2): Z=-4..+4
         for (int z = -4; z <= 4; z++)
             result.Add(new TilePlacement { Type = TileType.Fence, GridX = -2, GridY = 0, GridZ = z, Facing = CardinalDirection.East });
 
-        // East wall (X=8): Z=-4..+4, wall faces West (-X)
+        // East wall (X=12): Z=-4..+4
         for (int z = -4; z <= 4; z++)
-            result.Add(new TilePlacement { Type = TileType.Fence, GridX = 8, GridY = 0, GridZ = z, Facing = CardinalDirection.West });
+            result.Add(new TilePlacement { Type = TileType.Fence, GridX = 12, GridY = 0, GridZ = z, Facing = CardinalDirection.West });
 
-        // North wall (Z=-4): X=-1..7, wall faces South (+Z) → canonical wall on -Z rotated 180° = South
-        for (int x = -1; x <= 7; x++)
+        // North wall (Z=-4): X=-1..11
+        for (int x = -1; x <= 11; x++)
             result.Add(new TilePlacement { Type = TileType.Fence, GridX = x, GridY = 0, GridZ = -4, Facing = CardinalDirection.South });
 
-        // South wall (Z=+4): X=-1..7, wall faces North (-Z) → canonical wall on -Z, no rotation = North
-        for (int x = -1; x <= 7; x++)
+        // South wall (Z=+4): X=-1..11
+        for (int x = -1; x <= 11; x++)
             result.Add(new TilePlacement { Type = TileType.Fence, GridX = x, GridY = 0, GridZ = 4, Facing = CardinalDirection.North });
 
         return result.ToArray();

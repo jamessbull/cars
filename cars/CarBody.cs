@@ -15,8 +15,13 @@ public partial class CarBody : RigidBody3D
         new Vector3(CarConstants.TrackHalf, 0, CarConstants.WheelBaseHalf),   // RR
     };
 
-    // How far above each wheel attachment to start the ray (must be above any terrain)
-    private const float RaycastCeilingOffset = 10f;
+    // How far above the wheel attachment to start the ray — small, just enough to
+    // detect ground when the chassis briefly sinks into terrain. Must NOT reach up
+    // to any overhead geometry (bridge tiles, etc.).
+    private const float RaycastUpOffset = 0.5f;
+    // How far below the wheel attachment to cast the ray — must cover full spring
+    // travel: RestLength (0.5) + WheelRadius (0.35) + slack.
+    private const float RaycastDownReach = 1.5f;
     // Maximum angular velocity on pitch/roll axes (rad/s) — prevents wild spinning
     private const float MaxPitchRollSpeed = 3f;
     // Angular damping on pitch/roll per frame — bleeds off spin
@@ -130,8 +135,8 @@ public partial class CarBody : RigidBody3D
         var attachWorld = GlobalTransform * WheelPositions[index];
 
         // Cast ray from well above the wheel straight down in world space
-        var from = new Vector3(attachWorld.X, attachWorld.Y + RaycastCeilingOffset, attachWorld.Z);
-        var to = new Vector3(attachWorld.X, attachWorld.Y - RaycastCeilingOffset, attachWorld.Z);
+        var from = new Vector3(attachWorld.X, attachWorld.Y + RaycastUpOffset,   attachWorld.Z);
+        var to   = new Vector3(attachWorld.X, attachWorld.Y - RaycastDownReach, attachWorld.Z);
 
         var query = PhysicsRayQueryParameters3D.Create(from, to, 1); // mask = layer 1 (track)
         query.HitFromInside = true;

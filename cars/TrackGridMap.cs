@@ -67,6 +67,12 @@ public partial class TrackGridMap : Node3D
                 TileType.Ramp => rampMaterial,
                 TileType.Gravel => gravelMaterial,
                 TileType.Fence => fenceMaterial,
+                TileType.RampEntry => rampMaterial,
+                TileType.RampExit => rampMaterial,
+                TileType.SlopeEdge => gravelMaterial,
+                TileType.SlopeCorner => gravelMaterial,
+                TileType.RampEntryCorner => rampMaterial,
+                TileType.SolidRampEntry => rampMaterial,
                 _ => flatMaterial
             };
 
