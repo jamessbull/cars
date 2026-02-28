@@ -2,6 +2,13 @@ using Godot;
 
 public partial class TrackGridMap : Node3D
 {
+    /// <summary>
+    /// Path to a JSON track layout file (Godot res:// or absolute path).
+    /// When set and the file exists, it overrides the built-in demo track.
+    /// Leave empty to always use the demo track.
+    /// </summary>
+    [Export] public string TrackLayoutFile = "res://track_layout.json";
+
     private GridMap _gridMap;
 
     public override void _Ready()
@@ -136,9 +143,22 @@ public partial class TrackGridMap : Node3D
         return shape;
     }
 
+    private TilePlacement[] LoadPlacements()
+    {
+        if (!string.IsNullOrEmpty(TrackLayoutFile) && FileAccess.FileExists(TrackLayoutFile))
+        {
+            var json = FileAccess.GetFileAsString(TrackLayoutFile);
+            GD.Print($"Loading track from {TrackLayoutFile}");
+            return TrackLayoutLoader.LoadFromJson(json);
+        }
+
+        GD.Print("No track file found, using demo track");
+        return TrackLayout.GetDemoTrack();
+    }
+
     private void PlaceDemoTrack()
     {
-        var placements = TrackLayout.GetDemoTrack();
+        var placements = LoadPlacements();
         foreach (var placement in placements)
         {
             int tileId = (int)placement.Type;
