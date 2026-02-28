@@ -22,8 +22,9 @@ public partial class TrackGridMap : Node3D
         _gridMap.CellSize = new Vector3(TileGeometry.CellWidth, TileGeometry.CellHeight, TileGeometry.CellDepth);
         AddChild(_gridMap);
 
-        PlaceDemoTrack();
+        var placements = PlaceDemoTrack();
         PositionCamera();
+        PositionCar(placements);
     }
 
     private void SetupEnvironment()
@@ -40,123 +41,38 @@ public partial class TrackGridMap : Node3D
         AddChild(worldEnv);
     }
 
-    private MeshLibrary BuildMeshLibrary()
-    {
-        var library = new MeshLibrary();
-
-        var flatMaterial = new StandardMaterial3D();
-        flatMaterial.AlbedoColor = new Color(0.3f, 0.8f, 0.3f);
-        flatMaterial.Roughness = 0.8f;
-        flatMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
-
-        var rampMaterial = new StandardMaterial3D();
-        rampMaterial.AlbedoColor = new Color(0.7f, 0.7f, 0.7f);
-        rampMaterial.Roughness = 0.8f;
-        rampMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
-
-        var gravelMaterial = new StandardMaterial3D();
-        gravelMaterial.AlbedoColor = new Color(0.6f, 0.45f, 0.25f);
-        gravelMaterial.Roughness = 1.0f;
-        gravelMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
-
-        var fenceMaterial = new StandardMaterial3D();
-        fenceMaterial.AlbedoColor = new Color(0.4f, 0.4f, 0.4f);
-        fenceMaterial.Roughness = 0.9f;
-        fenceMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
-
-        foreach (TileType type in System.Enum.GetValues<TileType>())
-        {
-            int id = (int)type;
-            var meshData = TileGeometry.GenerateTile(type);
-            var mat = type switch
-            {
-                TileType.Flat => flatMaterial,
-                TileType.Ramp => rampMaterial,
-                TileType.Gravel => gravelMaterial,
-                TileType.Fence => fenceMaterial,
-                TileType.RampEntry => rampMaterial,
-                TileType.RampExit => rampMaterial,
-                TileType.SlopeEdge => gravelMaterial,
-                TileType.SlopeCorner => gravelMaterial,
-                TileType.RampEntryCorner => rampMaterial,
-                TileType.SolidRampEntry => rampMaterial,
-                _ => flatMaterial
-            };
-
-            var arrayMesh = ConvertToArrayMesh(meshData, mat);
-            var collisionShape = CreateCollisionShape(meshData);
-
-            library.CreateItem(id);
-            library.SetItemName(id, type.ToString());
-            library.SetItemMesh(id, arrayMesh);
-
-            var shapes = new Godot.Collections.Array();
-            shapes.Add(collisionShape);
-            shapes.Add(Transform3D.Identity);
-            library.SetItemShapes(id, shapes);
-
-            GD.Print($"MeshLibrary item {id} ({type}): {meshData.Vertices.Length / 3} verts, {meshData.Indices.Length / 3} tris");
-        }
-
-        return library;
-    }
-
-    private static ArrayMesh ConvertToArrayMesh(TileMeshData data, Material material)
-    {
-        int vertexCount = data.Vertices.Length / 3;
-
-        var vertices = new Vector3[vertexCount];
-        var normals = new Vector3[vertexCount];
-        for (int i = 0; i < vertexCount; i++)
-        {
-            vertices[i] = new Vector3(data.Vertices[i * 3], data.Vertices[i * 3 + 1], data.Vertices[i * 3 + 2]);
-            normals[i] = new Vector3(data.Normals[i * 3], data.Normals[i * 3 + 1], data.Normals[i * 3 + 2]);
-        }
-
-        var indices = new int[data.Indices.Length];
-        System.Array.Copy(data.Indices, indices, data.Indices.Length);
-
-        var arrays = new Godot.Collections.Array();
-        arrays.Resize((int)Mesh.ArrayType.Max);
-        arrays[(int)Mesh.ArrayType.Vertex] = vertices;
-        arrays[(int)Mesh.ArrayType.Normal] = normals;
-        arrays[(int)Mesh.ArrayType.Index] = indices;
-
-        var mesh = new ArrayMesh();
-        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-        mesh.SurfaceSetMaterial(0, material);
-        return mesh;
-    }
-
-    private static ConcavePolygonShape3D CreateCollisionShape(TileMeshData data)
-    {
-        var faces = new Vector3[data.Indices.Length];
-        for (int i = 0; i < data.Indices.Length; i++)
-        {
-            int vi = data.Indices[i] * 3;
-            faces[i] = new Vector3(data.Vertices[vi], data.Vertices[vi + 1], data.Vertices[vi + 2]);
-        }
-
-        var shape = new ConcavePolygonShape3D();
-        shape.BackfaceCollision = true;
-        shape.SetFaces(faces);
-        return shape;
-    }
+    private static MeshLibrary BuildMeshLibrary() => TileMeshBuilder.BuildMeshLibrary();
 
     private TilePlacement[] LoadPlacements()
     {
         if (!string.IsNullOrEmpty(TrackLayoutFile) && FileAccess.FileExists(TrackLayoutFile))
         {
             var json = FileAccess.GetFileAsString(TrackLayoutFile);
-            GD.Print($"Loading track from {TrackLayoutFile}");
-            return TrackLayoutLoader.LoadFromJson(json);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                GD.PrintErr($"TrackGridMap: {TrackLayoutFile} exists but is empty — using demo track");
+                return TrackLayout.GetDemoTrack();
+            }
+
+            GD.Print($"TrackGridMap: loading {TrackLayoutFile} ({json.Length} chars)");
+            try
+            {
+                var placements = TrackLayoutLoader.LoadFromJson(json);
+                GD.Print($"TrackGridMap: loaded {placements.Length} tiles");
+                return placements;
+            }
+            catch (System.Exception e)
+            {
+                GD.PrintErr($"TrackGridMap: failed to parse {TrackLayoutFile}: {e.Message} — using demo track");
+                return TrackLayout.GetDemoTrack();
+            }
         }
 
-        GD.Print("No track file found, using demo track");
+        GD.Print("TrackGridMap: no track file found, using demo track");
         return TrackLayout.GetDemoTrack();
     }
 
-    private void PlaceDemoTrack()
+    private TilePlacement[] PlaceDemoTrack()
     {
         var placements = LoadPlacements();
         foreach (var placement in placements)
@@ -168,6 +84,29 @@ public partial class TrackGridMap : Node3D
             GD.Print($"Placed {placement.Type} (id={tileId}) at grid ({placement.GridX},{placement.GridY},{placement.GridZ}) facing {placement.Facing} orientation={orientation}");
         }
         GD.Print($"GridMap cell_size={_gridMap.CellSize} total cells={_gridMap.GetUsedCells().Count}");
+        return placements;
+    }
+
+    private void PositionCar(TilePlacement[] placements)
+    {
+        var car = GetParent().GetNodeOrNull<Node3D>("Car");
+        if (car == null)
+        {
+            GD.PrintErr("TrackGridMap: Car node not found under parent — skipping spawn");
+            return;
+        }
+
+        // Spawn at the centre of grid cell (0, 0, 0) — the conventional track start.
+        // CellWidth = CellDepth = 2.0, so the cell centre is at world X/Z = 1.0.
+        // The +1.0 on Y lifts the car clear of the tile surface.
+        float worldX = TileGeometry.CellWidth  / 2f;   // 1.0
+        float worldY = TileGeometry.CellHeight / 2f + 1.0f;
+        float worldZ = TileGeometry.CellDepth  / 2f;   // 1.0
+
+        car.Position = new Vector3(worldX, worldY, worldZ);
+        // -PI/2 rotation around Y makes the car face +X (East), matching the default track direction.
+        car.Rotation = new Vector3(0f, -System.MathF.PI / 2f, 0f);
+        GD.Print($"TrackGridMap: car spawned at ({worldX:F3}, {worldY:F3}, {worldZ:F3}), {placements.Length} tiles placed");
     }
 
     private void PositionCamera()

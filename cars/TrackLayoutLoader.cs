@@ -38,6 +38,28 @@ public static class TrackLayoutLoader
     };
 
     /// <summary>
+    /// Serializes tile placements to JSON in the format expected by <see cref="LoadFromJson"/>.
+    /// Uses System.Text.Json — no Godot dependency.
+    /// </summary>
+    public static string SaveToJson(System.Collections.Generic.IEnumerable<TilePlacement> placements)
+    {
+        var dtos = new System.Collections.Generic.List<TilePlacementDto>();
+        foreach (var p in placements)
+        {
+            dtos.Add(new TilePlacementDto
+            {
+                Type   = p.Type.ToString(),
+                X      = p.GridX,
+                Y      = p.GridY,
+                Z      = p.GridZ,
+                Facing = p.Facing.ToString()
+            });
+        }
+        var file = new TrackLayoutFile { TrackLayout = dtos.ToArray() };
+        return JsonSerializer.Serialize(file, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    /// <summary>
     /// Parses a JSON string and returns the tile placements it describes.
     /// Throws <see cref="JsonException"/> for malformed JSON.
     /// Throws <see cref="ArgumentException"/> for unknown tile type or facing values.
