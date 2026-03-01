@@ -336,8 +336,23 @@ public partial class MapEditorNode : Node3D
     private void DeleteTileAtMouse(Vector2 mouse)
     {
         var (gx, gz) = GetHoveredCell(mouse);
-        _state.DeleteTile(gx, _state.GridY, gz);
-        _gridMap.SetCellItem(new Vector3I(gx, _state.GridY, gz), -1, 0);
+
+        // Prefer the tile at the current grid height; if none exists there, fall back to
+        // whichever tile in the same XZ column has the Y closest to the current height.
+        int targetY = _state.GridY;
+        if (!_state.PlacedTiles.ContainsKey((gx, targetY, gz)))
+        {
+            int bestDist = int.MaxValue;
+            foreach (var key in _state.PlacedTiles.Keys)
+            {
+                if (key.x != gx || key.z != gz) continue;
+                int dist = System.Math.Abs(key.y - _state.GridY);
+                if (dist < bestDist) { bestDist = dist; targetY = key.y; }
+            }
+        }
+
+        _state.DeleteTile(gx, targetY, gz);
+        _gridMap.SetCellItem(new Vector3I(gx, targetY, gz), -1, 0);
     }
 
     // ─── Save ────────────────────────────────────────────────────────────────
