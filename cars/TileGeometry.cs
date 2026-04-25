@@ -12,7 +12,8 @@ public enum TileType
     SlopeEdge,
     SlopeCorner,
     RampEntryCorner,
-    SolidRampEntry
+    SolidRampEntry,
+    Grass
 }
 
 public struct TileMeshData
@@ -77,6 +78,7 @@ public static class TileGeometry
             TileType.SlopeCorner => GenerateSlopeCorner(),
             TileType.RampEntryCorner => GenerateRampEntryCorner(),
             TileType.SolidRampEntry => GenerateSolidRampEntry(),
+            TileType.Grass          => GenerateFlat(),
             _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
     }

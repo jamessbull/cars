@@ -26,6 +26,15 @@ public class MapEditorState
     public CardinalDirection SelectedFacing { get; private set; } = CardinalDirection.North;
     public int GridY { get; private set; } = 0;
 
+    /// <summary>Upsert a specific tile type/facing at (gx, gy, gz), bypassing the selected type.</summary>
+    public void PlaceTileDirect(int gx, int gy, int gz, TileType type, CardinalDirection facing)
+    {
+        PlacedTiles[(gx, gy, gz)] = new TilePlacement
+        {
+            Type = type, GridX = gx, GridY = gy, GridZ = gz, Facing = facing
+        };
+    }
+
     /// <summary>Upsert the current tile type/facing at (gx, gy, gz).</summary>
     public void PlaceTile(int gx, int gy, int gz)
     {

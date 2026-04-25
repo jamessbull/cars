@@ -646,9 +646,13 @@ public partial class MapEditorNode : Node3D
         int z0 = System.Math.Min(_earthDragStart.gz, _earthDragCurrent.gz);
         int z1 = System.Math.Max(_earthDragStart.gz, _earthDragCurrent.gz);
 
+        int grassId       = (int)TileType.Grass;
+        int grassOrient   = TrackLayout.GetOrientationIndex(CardinalDirection.North);
+
         for (int gx = x0; gx <= x1; gx++)
         for (int gz = z0; gz <= z1; gz++)
         {
+            // Earth block below ground
             _state.PlaceEarthBlock(gx, gz);
             var key = (gx, gz);
             if (!_earthBlockNodes.ContainsKey(key))
@@ -658,6 +662,10 @@ public partial class MapEditorNode : Node3D
                 _earthContainer.AddChild(block);
                 _earthBlockNodes[key] = block;
             }
+
+            // Grass tile on top (GridY = 0, same level as track)
+            _state.PlaceTileDirect(gx, 0, gz, TileType.Grass, CardinalDirection.North);
+            _gridMap.SetCellItem(new Vector3I(gx, 0, gz), grassId, grassOrient);
         }
     }
 
