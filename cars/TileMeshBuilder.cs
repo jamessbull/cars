@@ -103,10 +103,13 @@ public static class TileMeshBuilder
     private static StandardMaterial3D FlatMaterial()
     {
         var mat = new StandardMaterial3D();
-        mat.AlbedoTexture = FlatTexture();
-        mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
-        mat.Roughness     = 0.85f;
-        mat.CullMode      = BaseMaterial3D.CullModeEnum.Disabled;
+        mat.AlbedoTexture       = FlatTexture();
+        mat.TextureFilter       = BaseMaterial3D.TextureFilterEnum.Nearest;
+        mat.Uv1Triplanar        = true;
+        mat.Uv1TriplanarSharpness = 1f;
+        mat.Uv1Scale            = new Vector3(0.5f, 0.5f, 0.5f); // 1 tile = 2 world units
+        mat.Roughness           = 0.85f;
+        mat.CullMode            = BaseMaterial3D.CullModeEnum.Disabled;
         return mat;
     }
 
@@ -140,10 +143,13 @@ public static class TileMeshBuilder
     private static StandardMaterial3D GrassMaterial()
     {
         var mat = new StandardMaterial3D();
-        mat.AlbedoTexture = GrassTexture();
-        mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
-        mat.Roughness     = 0.95f;
-        mat.CullMode      = BaseMaterial3D.CullModeEnum.Disabled;
+        mat.AlbedoTexture         = GrassTexture();
+        mat.TextureFilter         = BaseMaterial3D.TextureFilterEnum.Nearest;
+        mat.Uv1Triplanar          = true;
+        mat.Uv1TriplanarSharpness = 1f;
+        mat.Uv1Scale              = new Vector3(0.5f, 0.5f, 0.5f);
+        mat.Roughness             = 0.95f;
+        mat.CullMode              = BaseMaterial3D.CullModeEnum.Disabled;
         return mat;
     }
 

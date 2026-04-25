@@ -92,13 +92,17 @@ public partial class CarBody : RigidBody3D
         // Surface-dependent grip and drag — applied when grounded
         if (result.GroundedCount > 0)
         {
-            // Detect tile type at car's current position
+            // Detect tile type at car's current XZ position.
+            // Ground-level tiles (grass, flat, gravel) are always at GridY=0.
+            // The car rides ~0.5 m above the tile surface, so LocalToMap resolves to
+            // the wrong grid Y if we use GlobalPosition directly — always use Y=0.
             bool isGrass = false;
             bool isGravel = false;
             if (_gridMap != null)
             {
-                var mapPos = _gridMap.LocalToMap(_gridMap.ToLocal(GlobalPosition));
-                int cellItem = _gridMap.GetCellItem(mapPos);
+                int gx = Mathf.FloorToInt(GlobalPosition.X / TileGeometry.CellWidth);
+                int gz = Mathf.FloorToInt(GlobalPosition.Z / TileGeometry.CellDepth);
+                int cellItem = _gridMap.GetCellItem(new Vector3I(gx, 0, gz));
                 isGravel = cellItem == (int)TileType.Gravel;
                 isGrass  = cellItem == (int)TileType.Grass;
             }
