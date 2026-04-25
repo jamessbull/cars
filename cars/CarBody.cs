@@ -89,29 +89,37 @@ public partial class CarBody : RigidBody3D
         var driveForce = new Vector3(result.DriveForceX, result.DriveForceY, result.DriveForceZ);
         ApplyCentralForce(driveForce);
 
-        // Kill lateral velocity — with perfect grip, the car only moves
-        // in the direction it's facing (no sideways drift)
-        // Use flat (XZ) forward to avoid double-counting vertical velocity on ramps
+        // Surface-dependent grip and drag — applied when grounded
         if (result.GroundedCount > 0)
         {
-            var flatForward = new Vector3(forward.X, 0f, forward.Z).Normalized();
-            float flatSpeed = LinearVelocity.Dot(flatForward);
-            float verticalSpeed = LinearVelocity.Y;
-            LinearVelocity = flatForward * flatSpeed + Vector3.Up * verticalSpeed;
-
-            // Rolling resistance — always applies when grounded
-            LinearVelocity *= CarConstants.RollingDragFactor;
-
-            // Apply extra gravel drag if on a gravel tile
+            // Detect tile type at car's current position
+            bool isGrass = false;
+            bool isGravel = false;
             if (_gridMap != null)
             {
                 var mapPos = _gridMap.LocalToMap(_gridMap.ToLocal(GlobalPosition));
                 int cellItem = _gridMap.GetCellItem(mapPos);
-                if (cellItem == (int)TileType.Gravel)
-                {
-                    LinearVelocity *= CarConstants.GravelDragFactor;
-                }
+                isGravel = cellItem == (int)TileType.Gravel;
+                isGrass  = cellItem == (int)TileType.Grass;
             }
+
+            var flatForward = new Vector3(forward.X, 0f, forward.Z).Normalized();
+            float flatSpeed    = LinearVelocity.Dot(flatForward);
+            float verticalSpeed = LinearVelocity.Y;
+
+            // Lateral grip: cancel sideways velocity.
+            // Road = full correction (gripFactor 1.0), Grass = partial (allows sliding).
+            float gripFactor = isGrass ? CarConstants.GrassGripFactor : 1.0f;
+            var lateral = LinearVelocity - flatForward * flatSpeed - Vector3.Up * verticalSpeed;
+            LinearVelocity -= lateral * gripFactor;
+
+            // Rolling drag (surface-dependent)
+            if (isGravel)
+                LinearVelocity *= CarConstants.GravelDragFactor;
+            else if (isGrass)
+                LinearVelocity *= CarConstants.GrassDragFactor;
+            else
+                LinearVelocity *= CarConstants.RollingDragFactor;
         }
 
         // Steering: directly set Y angular velocity (stops immediately on key release)

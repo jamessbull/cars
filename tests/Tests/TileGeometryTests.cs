@@ -353,12 +353,14 @@ public class TileGeometryTests
     // --- SolidRampEntry tile ---
 
     [Fact]
-    public void SolidRampEntry_NoNegativeY()
+    public void SolidRampEntry_BottomAtTileThickness()
     {
-        // Solid wedge sits on Y=0 floor — no vertex should go below Y=0
+        // Bottom face was lowered to Y=-TileThickness so the entry edge profile matches
+        // a flat tile (no bump at the join). No vertex should go below -TileThickness.
         var tile = TileGeometry.GenerateTile(TileType.SolidRampEntry);
+        float minAllowed = -TileGeometry.TileThickness - 0.001f;
         for (int i = 1; i < tile.Vertices.Length; i += 3)
-            Assert.True(tile.Vertices[i] >= -0.001f, $"Vertex Y={tile.Vertices[i]} is below Y=0");
+            Assert.True(tile.Vertices[i] >= minAllowed, $"Vertex Y={tile.Vertices[i]} below -{TileGeometry.TileThickness}");
     }
 
     [Fact]

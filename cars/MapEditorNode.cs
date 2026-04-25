@@ -22,6 +22,16 @@ public partial class MapEditorNode : Node3D
     private Button[]             _tileButtons;
     private Timer                _saveTimer;
 
+    // ─── Tile paint state ─────────────────────────────────────────────────────
+    private bool                 _lmbHeld;
+
+    // ─── Height arrow ──────────────────────────────────────────────────────────
+    private MeshInstance3D       _heightArrow;
+    private StandardMaterial3D   _heightArrowMat;
+    private int                  _lastArrowGridY = -1;
+    private int                  _lastArrowGx    = int.MinValue;
+    private int                  _lastArrowGz    = int.MinValue;
+
     // ─── Earth block tool state ───────────────────────────────────────────────
     private bool                 _earthMode;
     private bool                 _earthDragActive;
@@ -49,6 +59,7 @@ public partial class MapEditorNode : Node3D
         SetupGridPlane();
         SetupCellOutline();
         SetupUI();
+        SetupHeightArrow();
         SetupEarthContainer();
         SetupEarthPreview();
         LoadExistingLayout();
@@ -322,6 +333,18 @@ public partial class MapEditorNode : Node3D
         helpPanel.AddChild(helpLabel);
     }
 
+    private void SetupHeightArrow()
+    {
+        _heightArrowMat = new StandardMaterial3D();
+        _heightArrowMat.AlbedoColor = new Color(1f, 0.85f, 0f);
+        _heightArrowMat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+        _heightArrowMat.NoDepthTest = true;
+
+        _heightArrow = new MeshInstance3D();
+        _heightArrow.Visible = false;
+        AddChild(_heightArrow);
+    }
+
     private void SetupEarthContainer()
     {
         _earthContainer = new Node3D();
@@ -407,15 +430,20 @@ public partial class MapEditorNode : Node3D
         var mouse      = GetViewport().GetMousePosition();
         bool overUI    = IsMouseOverSidebar(mouse);
 
-        _ghostTile.Visible   = !overUI;
+        _ghostTile.Visible   = !overUI && !_earthMode;
         _cellOutline.Visible = !overUI;
 
         if (!overUI)
         {
             var (gx, gz) = GetHoveredCell(mouse);
             var ghostPos = GridToWorld(gx, _state.GridY, gz);
-            _ghostTile.Position  = ghostPos;
+            _ghostTile.Position   = ghostPos;
             _cellOutline.Position = new Vector3(ghostPos.X, TileGeometry.CellHeight / 2f, ghostPos.Z);
+            UpdateHeightArrow(gx, gz);
+        }
+        else
+        {
+            _heightArrow.Visible = false;
         }
     }
 
@@ -452,7 +480,7 @@ public partial class MapEditorNode : Node3D
             return;
         }
 
-        // Mouse motion: orbit OR update earth drag preview
+        // Mouse motion: orbit, earth drag, or tile paint-on-drag
         if (@event is InputEventMouseMotion motion)
         {
             if (_orbitActive)
@@ -465,6 +493,12 @@ public partial class MapEditorNode : Node3D
             {
                 _earthDragCurrent = GetHoveredCellAtWorldY(GetViewport().GetMousePosition(), 0f);
                 UpdateEarthPreview();
+            }
+            else if (_lmbHeld && !_earthMode)
+            {
+                var m = GetViewport().GetMousePosition();
+                if (!IsMouseOverSidebar(m))
+                    PlaceTileAtMouse(m);
             }
             return;
         }
@@ -498,14 +532,20 @@ public partial class MapEditorNode : Node3D
         }
 
         // ── Tile placement mode ───────────────────────────────────────────────
+
+        // LMB: track held state for paint-on-drag; place tile on press
+        if (mouseBtn.ButtonIndex == MouseButton.Left)
+        {
+            _lmbHeld = mouseBtn.Pressed;
+            if (mouseBtn.Pressed && !overUI)
+                PlaceTileAtMouse(mouse);
+            return;
+        }
+
         if (!mouseBtn.Pressed) return;
 
         switch (mouseBtn.ButtonIndex)
         {
-            case MouseButton.Left when !overUI:
-                PlaceTileAtMouse(mouse);
-                break;
-
             case MouseButton.Right when !overUI:
                 DeleteTileAtMouse(mouse);
                 break;
@@ -667,6 +707,53 @@ public partial class MapEditorNode : Node3D
             _state.PlaceTileDirect(gx, 0, gz, TileType.Grass, CardinalDirection.North);
             _gridMap.SetCellItem(new Vector3I(gx, 0, gz), grassId, grassOrient);
         }
+    }
+
+    private void UpdateHeightArrow(int gx, int gz)
+    {
+        if (_state.GridY == 0)
+        {
+            _heightArrow.Visible = false;
+            return;
+        }
+
+        // Only rebuild mesh when cell or height actually changes
+        if (gx == _lastArrowGx && gz == _lastArrowGz && _state.GridY == _lastArrowGridY)
+        {
+            _heightArrow.Visible = true;
+            return;
+        }
+        _lastArrowGx    = gx;
+        _lastArrowGz    = gz;
+        _lastArrowGridY = _state.GridY;
+
+        float cx   = gx * TileGeometry.CellWidth  + TileGeometry.CellWidth  / 2f;
+        float cz   = gz * TileGeometry.CellDepth  + TileGeometry.CellDepth  / 2f;
+        float base_ = TileGeometry.CellHeight / 2f;
+        float tip  = _state.GridY * TileGeometry.CellHeight + TileGeometry.CellHeight / 2f;
+        float aw   = 0.25f;  // arrowhead half-width
+        float al   = 0.40f;  // arrowhead length
+
+        // Vertices are in world space; _heightArrow.Position stays at origin
+        var verts = new Godot.Vector3[]
+        {
+            new(cx,    base_, cz),  new(cx,    tip,    cz),    // shaft
+            new(cx,    tip,   cz),  new(cx-aw, tip-al, cz),   // head ←
+            new(cx,    tip,   cz),  new(cx+aw, tip-al, cz),   // head →
+            new(cx,    tip,   cz),  new(cx,    tip-al, cz-aw),// head ↑
+            new(cx,    tip,   cz),  new(cx,    tip-al, cz+aw),// head ↓
+        };
+
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Godot.Mesh.ArrayType.Max);
+        arrays[(int)Godot.Mesh.ArrayType.Vertex] = verts;
+
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Lines, arrays);
+        mesh.SurfaceSetMaterial(0, _heightArrowMat);
+
+        _heightArrow.Mesh    = mesh;
+        _heightArrow.Visible = true;
     }
 
     private void UpdateEarthPreview()

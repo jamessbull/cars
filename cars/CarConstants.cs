@@ -38,7 +38,10 @@ public static class CarConstants
 
     // Surface
     public const float RollingDragFactor = 0.995f; // velocity multiplier per frame (mild rolling resistance)
-    public const float GravelDragFactor = 0.95f;   // velocity multiplier per frame on gravel
+    public const float GravelDragFactor  = 0.95f;  // velocity multiplier per frame on gravel
+    public const float GrassDragFactor   = 0.982f; // velocity multiplier per frame on grass (lower top speed)
+    public const float GrassGripFactor   = 0.45f;  // fraction of lateral velocity corrected per frame (reduced grip)
+    // Road (Flat) uses RollingDragFactor and full lateral correction (grip factor = 1.0)
 
 
     // Camera

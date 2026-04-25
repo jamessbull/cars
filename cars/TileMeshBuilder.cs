@@ -103,9 +103,10 @@ public static class TileMeshBuilder
     private static StandardMaterial3D FlatMaterial()
     {
         var mat = new StandardMaterial3D();
-        mat.AlbedoColor = new Color(0.3f, 0.8f, 0.3f);
-        mat.Roughness   = 0.8f;
-        mat.CullMode    = BaseMaterial3D.CullModeEnum.Disabled;
+        mat.AlbedoTexture = FlatTexture();
+        mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
+        mat.Roughness     = 0.85f;
+        mat.CullMode      = BaseMaterial3D.CullModeEnum.Disabled;
         return mat;
     }
 
@@ -158,8 +159,26 @@ public static class TileMeshBuilder
 
     // ─── Procedural textures ──────────────────────────────────────────────────
 
+    private static ImageTexture _flatTexture;
     private static ImageTexture _grassTexture;
     private static ImageTexture _earthTexture;
+
+    private static ImageTexture FlatTexture()
+    {
+        if (_flatTexture != null) return _flatTexture;
+        const int Size = 64;
+        var img = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
+        img.Fill(new Color(0.54f, 0.54f, 0.54f)); // mid-grey asphalt base
+        var rng = new Random(7);
+        // Fine dark speckles — aggregate and tar variations
+        for (int i = 0; i < 45; i++) PaintBlob(img, rng, Size, new Color(0.38f, 0.38f, 0.38f), 1, 3);
+        // Light highlights — pale stones / worn surface
+        for (int i = 0; i < 28; i++) PaintBlob(img, rng, Size, new Color(0.67f, 0.67f, 0.67f), 1, 2);
+        // Very fine dark flecks for grit
+        for (int i = 0; i < 20; i++) PaintBlob(img, rng, Size, new Color(0.30f, 0.30f, 0.30f), 1, 1);
+        _flatTexture = ImageTexture.CreateFromImage(img);
+        return _flatTexture;
+    }
 
     private static ImageTexture GrassTexture()
     {
