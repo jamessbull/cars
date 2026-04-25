@@ -9,13 +9,13 @@ public class MapEditorState
     private static readonly TileType[] TileTypes = (TileType[])Enum.GetValues(typeof(TileType));
     private static readonly CardinalDirection[] Facings = (CardinalDirection[])Enum.GetValues(typeof(CardinalDirection));
 
-    public const int MaxGridY = 30;
+    public const int MaxGridY = 60;
 
     /// <summary>
-    /// Number of raw grid cells per one tile height (TileThickness / CellHeight, rounded).
-    /// Scroll moves the grid by this many cells so each step = exactly one tile thickness.
+    /// One grid cell per scroll step, giving fine-grained control for correct ramp alignment.
+    /// Correct Y values for a ground ramp: RampEntry=0, Ramp=3, RampExit=10, elevated Flat=13.
     /// </summary>
-    public static readonly int HeightStep = (int)System.MathF.Round(TileGeometry.TileThickness / TileGeometry.CellHeight);
+    public const int HeightStep = 1;
 
     public Dictionary<(int x, int y, int z), TilePlacement> PlacedTiles { get; } = new();
     public TileType SelectedType { get; private set; } = TileType.Flat;
@@ -50,11 +50,24 @@ public class MapEditorState
         SelectedType = TileTypes[idx];
     }
 
-    /// <summary>Directly select a specific tile type.</summary>
+    /// <summary>Directly select a specific tile type, auto-advancing height for ramp sequencing.</summary>
     public void SelectTileType(TileType type)
     {
+        if (type == SelectedType) return;
         SelectedType = type;
+
+        // When switching into a ramp tile type, snap height up by the right amount so the
+        // new tile automatically lines up with whatever was placed before it:
+        //   RampEntry (y=N) → Ramp:    needs +ArcGridSpan  above RampEntry origin
+        //   Ramp      (y=N) → RampExit: needs +RampGridSpan above Ramp origin
+        if (type == TileType.Ramp)
+            GridY = Math.Clamp(GridY + TileGeometry.ArcGridSpan, 0, MaxGridY);
+        else if (type == TileType.RampExit)
+            GridY = Math.Clamp(GridY + TileGeometry.RampGridSpan, 0, MaxGridY);
     }
+
+    /// <summary>Directly set grid Y, clamped.</summary>
+    public void SetGridY(int y) => GridY = Math.Clamp(y, 0, MaxGridY);
 
     /// <summary>Cycle facing by delta (+1/-1) through N→E→S→W, wrapping around.</summary>
     public void CycleFacing(int delta)

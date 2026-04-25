@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="Cars"
-run/main_scene="res://world.tscn"
+run/main_scene="uid://b6mqinx3m34x2"
 config/features=PackedStringArray("4.6", "C#", "Forward Plus")
 config/icon="res://icon.svg"
+
+[display]
+
+window/size/mode=2
 
 [dotnet]
 

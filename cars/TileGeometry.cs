@@ -744,13 +744,12 @@ public static class TileGeometry
 
     private static TileMeshData GenerateSolidRampEntry()
     {
-        // Same curved top surface as RampEntry, but solid:
-        //   - Bottom face is flat at Y=0 (not offset by TileThickness)
-        //   - Left/right walls fill the full height from Y=0 to the curved profile
-        //   - Front wall spans Y=0 to Y=ArcRise
-        //   - No back wall (arc starts at Y=0 = base level, so nothing to close)
+        // Same curved top surface as RampEntry, but solid fill underneath.
+        // Bottom face is flat at Y=-TileThickness (matching the flat tile underside),
+        // so the entry edge profile is identical to a flat tile and there is no bump.
         float hw = CellWidth / 2f;
         float hd = CellDepth / 2f;
+        float t = TileThickness;
         int segs = CurveSegments;
         float dz = CellDepth / segs;
 
@@ -787,50 +786,58 @@ public static class TileGeometry
             vi += 4;
         }
 
-        // Bottom face — flat at Y=0, normal pointing down
-        AddVertex(verts, norms, -hw, 0,  hd, 0, -1, 0);
-        AddVertex(verts, norms, -hw, 0, -hd, 0, -1, 0);
-        AddVertex(verts, norms,  hw, 0, -hd, 0, -1, 0);
-        AddVertex(verts, norms,  hw, 0,  hd, 0, -1, 0);
+        // Bottom face — flat at Y=-t, matching the flat tile underside
+        AddVertex(verts, norms, -hw, -t,  hd, 0, -1, 0);
+        AddVertex(verts, norms, -hw, -t, -hd, 0, -1, 0);
+        AddVertex(verts, norms,  hw, -t, -hd, 0, -1, 0);
+        AddVertex(verts, norms,  hw, -t,  hd, 0, -1, 0);
         AddTriangle(inds, vi, 0, 1, 2);
         AddTriangle(inds, vi, 0, 2, 3);
         vi += 4;
 
-        // Left wall (X=-hw) — filled from Y=0 to curved height, CCW from -X.
-        // At i=0 the back height is 0 so the first triangle is degenerate; skip it.
+        // Back wall (Z=+hd) — from Y=-t to Y=0, matching flat tile edge profile
+        AddVertex(verts, norms, -hw, -t, hd, 0, 0, 1);
+        AddVertex(verts, norms,  hw, -t, hd, 0, 0, 1);
+        AddVertex(verts, norms,  hw,  0, hd, 0, 0, 1);
+        AddVertex(verts, norms, -hw,  0, hd, 0, 0, 1);
+        AddTriangle(inds, vi, 0, 1, 2);
+        AddTriangle(inds, vi, 0, 2, 3);
+        vi += 4;
+
+        // Left wall (X=-hw) — filled from Y=-t to curved height, CCW from -X
         for (int i = 0; i < segs; i++)
         {
             float wz0 = hd - i * dz, wz1 = wz0 - dz;
             float h0 = heights[i], h1 = heights[i + 1];
 
-            AddVertex(verts, norms, -hw, 0,  wz0, -1, 0, 0); // bottom-back
-            AddVertex(verts, norms, -hw, h0, wz0, -1, 0, 0); // top-back
-            AddVertex(verts, norms, -hw, h1, wz1, -1, 0, 0); // top-front
-            AddVertex(verts, norms, -hw, 0,  wz1, -1, 0, 0); // bottom-front
-            if (h0 > 0) AddTriangle(inds, vi, 0, 1, 2);      // skip when top-back == bottom-back
+            AddVertex(verts, norms, -hw, -t,  wz0, -1, 0, 0); // bottom-back
+            AddVertex(verts, norms, -hw, h0, wz0, -1, 0, 0);  // top-back
+            AddVertex(verts, norms, -hw, h1, wz1, -1, 0, 0);  // top-front
+            AddVertex(verts, norms, -hw, -t,  wz1, -1, 0, 0); // bottom-front
+            AddTriangle(inds, vi, 0, 1, 2);
             AddTriangle(inds, vi, 0, 2, 3);
             vi += 4;
         }
 
-        // Right wall (X=+hw) — filled from Y=0 to curved height, CCW from +X.
+        // Right wall (X=+hw) — filled from Y=-t to curved height, CCW from +X
         for (int i = 0; i < segs; i++)
         {
             float wz0 = hd - i * dz, wz1 = wz0 - dz;
             float h0 = heights[i], h1 = heights[i + 1];
 
-            AddVertex(verts, norms,  hw, 0,  wz1, 1, 0, 0); // bottom-front
-            AddVertex(verts, norms,  hw, h1, wz1, 1, 0, 0); // top-front
-            AddVertex(verts, norms,  hw, h0, wz0, 1, 0, 0); // top-back
-            AddVertex(verts, norms,  hw, 0,  wz0, 1, 0, 0); // bottom-back
+            AddVertex(verts, norms,  hw, -t,  wz1, 1, 0, 0); // bottom-front
+            AddVertex(verts, norms,  hw, h1, wz1, 1, 0, 0);  // top-front
+            AddVertex(verts, norms,  hw, h0, wz0, 1, 0, 0);  // top-back
+            AddVertex(verts, norms,  hw, -t,  wz0, 1, 0, 0); // bottom-back
             AddTriangle(inds, vi, 0, 1, 2);
-            if (h0 > 0) AddTriangle(inds, vi, 0, 2, 3);     // skip when top-back == bottom-back
+            AddTriangle(inds, vi, 0, 2, 3);
             vi += 4;
         }
 
-        // Front wall (Z=-hd) — full height Y=0 to ArcRise, CCW from -Z
+        // Front wall (Z=-hd) — full height Y=-t to ArcRise, CCW from -Z
         float frontY = heights[segs];
-        AddVertex(verts, norms,  hw, 0,      -hd, 0, 0, -1);
-        AddVertex(verts, norms, -hw, 0,      -hd, 0, 0, -1);
+        AddVertex(verts, norms,  hw, -t,      -hd, 0, 0, -1);
+        AddVertex(verts, norms, -hw, -t,      -hd, 0, 0, -1);
         AddVertex(verts, norms, -hw, frontY, -hd, 0, 0, -1);
         AddVertex(verts, norms,  hw, frontY, -hd, 0, 0, -1);
         AddTriangle(inds, vi, 0, 1, 2);

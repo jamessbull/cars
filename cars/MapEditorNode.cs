@@ -22,6 +22,13 @@ public partial class MapEditorNode : Node3D
     private Button[]             _tileButtons;
     private Timer                _saveTimer;
 
+    // ─── Camera orbit / pan / zoom state ─────────────────────────────────────
+    private Vector3 _camPivot  = Vector3.Zero;
+    private float   _camYaw    = 45f;   // degrees, horizontal rotation
+    private float   _camPitch  = 35.26f; // degrees, elevation
+    private float   _camZoom   = 30f;   // orthographic size reference (world units at 648 px tall)
+    private bool    _orbitActive;
+
     public override void _Ready()
     {
         SetupEnvironment();
@@ -56,12 +63,48 @@ public partial class MapEditorNode : Node3D
     {
         _camera = new Camera3D();
         _camera.Projection = Camera3D.ProjectionType.Orthogonal;
-        _camera.Size       = 30f;
-        _camera.Position   = new Vector3(30, 30, 30);
         AddChild(_camera);
-        // LookAt must be called after AddChild so the global transform is valid.
-        // Before being in the scene tree, the rotation can be silently overwritten.
-        _camera.LookAt(Vector3.Zero, Vector3.Up);
+        GetViewport().SizeChanged += UpdateCameraSize;
+        UpdateCameraSize();
+        ApplyCameraTransform();
+    }
+
+    private void UpdateCameraSize()
+    {
+        // Keep the same world-units-per-pixel regardless of window size.
+        // _camZoom is the reference size at 648 px tall; zoom in/out adjusts _camZoom.
+        float h = GetViewport().GetVisibleRect().Size.Y;
+        _camera.Size = _camZoom * h / 648f;
+    }
+
+    /// <summary>Rebuild the camera position from yaw/pitch/zoom/pivot.</summary>
+    private void ApplyCameraTransform()
+    {
+        float yawRad   = _camYaw   * System.MathF.PI / 180f;
+        float pitchRad = _camPitch * System.MathF.PI / 180f;
+        const float Dist = 52f; // fixed world-space distance; zoom uses orthographic Size
+
+        float x = Dist * System.MathF.Cos(pitchRad) * System.MathF.Sin(yawRad);
+        float y = Dist * System.MathF.Sin(pitchRad);
+        float z = Dist * System.MathF.Cos(pitchRad) * System.MathF.Cos(yawRad);
+
+        _camera.Position = _camPivot + new Vector3(x, y, z);
+        _camera.LookAt(_camPivot, Vector3.Up);
+        UpdateGridPlaneY(); // keep grid plane centred under camera pivot
+    }
+
+    /// <summary>Camera right direction projected flat onto XZ.</summary>
+    private Vector3 CameraRightXZ()
+    {
+        float yawRad = _camYaw * System.MathF.PI / 180f;
+        return new Vector3(System.MathF.Cos(yawRad), 0f, -System.MathF.Sin(yawRad));
+    }
+
+    /// <summary>Camera forward direction projected flat onto XZ.</summary>
+    private Vector3 CameraForwardXZ()
+    {
+        float yawRad = _camYaw * System.MathF.PI / 180f;
+        return new Vector3(-System.MathF.Sin(yawRad), 0f, -System.MathF.Cos(yawRad));
     }
 
     private void SetupLight()
@@ -203,7 +246,7 @@ public partial class MapEditorNode : Node3D
         hbox.AddChild(spacer);
 
         _heightLabel     = new Label();
-        _heightLabel.Text = "Height: 0";
+        _heightLabel.Text = "Y: 0";
         _heightLabel.VerticalAlignment = VerticalAlignment.Center;
         hbox.AddChild(_heightLabel);
 
@@ -229,6 +272,27 @@ public partial class MapEditorNode : Node3D
         _saveTimer.OneShot    = true;
         _saveTimer.Timeout   += () => _saveLabel.Visible = false;
         AddChild(_saveTimer);
+
+        // ── Help bar (bottom) ─────────────────────────────────────────────
+        var helpPanel = new Panel();
+        helpPanel.SetAnchor(Side.Left,   0);
+        helpPanel.SetAnchor(Side.Right,  1);
+        helpPanel.SetAnchor(Side.Top,    1);
+        helpPanel.SetAnchor(Side.Bottom, 1);
+        helpPanel.SetOffset(Side.Top,    -28);
+        helpPanel.SetOffset(Side.Bottom, 0);
+        canvasLayer.AddChild(helpPanel);
+
+        var helpLabel = new Label();
+        helpLabel.Text =
+            "Scroll: height   Ctrl+Scroll: tile type   Shift+Scroll: facing   " +
+            "LMB: place   RMB: delete   Middle-drag: orbit   Arrows: pan   = / −: zoom   " +
+            "Selecting Ramp advances Y by " + TileGeometry.ArcGridSpan +
+            ";  RampExit by " + TileGeometry.RampGridSpan;
+        helpLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        helpLabel.VerticalAlignment   = VerticalAlignment.Center;
+        helpLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        helpPanel.AddChild(helpLabel);
     }
 
     // ─── Load existing track layout ──────────────────────────────────────────
@@ -264,6 +328,8 @@ public partial class MapEditorNode : Node3D
 
     public override void _Process(double delta)
     {
+        HandleCameraMovement((float)delta);
+
         var mouse      = GetViewport().GetMousePosition();
         bool overUI    = IsMouseOverSidebar(mouse);
 
@@ -275,15 +341,52 @@ public partial class MapEditorNode : Node3D
             var (gx, gz) = GetHoveredCell(mouse);
             var ghostPos = GridToWorld(gx, _state.GridY, gz);
             _ghostTile.Position  = ghostPos;
-            // Outline sits at the Y=0 tile surface, directly below the ghost tile column.
             _cellOutline.Position = new Vector3(ghostPos.X, TileGeometry.CellHeight / 2f, ghostPos.Z);
         }
+    }
+
+    private void HandleCameraMovement(float delta)
+    {
+        const float PanSpeed  = 15f;  // world units / second
+        const float ZoomSpeed = 0.8f; // zoom factor / second (multiplicative)
+
+        bool moved = false;
+
+        // Pan with arrow keys along the camera's XZ axes
+        if (Input.IsKeyPressed(Key.Left))  { _camPivot -= CameraRightXZ()   * (PanSpeed * delta); moved = true; }
+        if (Input.IsKeyPressed(Key.Right)) { _camPivot += CameraRightXZ()   * (PanSpeed * delta); moved = true; }
+        if (Input.IsKeyPressed(Key.Up))    { _camPivot += CameraForwardXZ() * (PanSpeed * delta); moved = true; }
+        if (Input.IsKeyPressed(Key.Down))  { _camPivot -= CameraForwardXZ() * (PanSpeed * delta); moved = true; }
+
+        // Zoom with = (zoom in) and - (zoom out); also numpad + / -
+        if (Input.IsKeyPressed(Key.Equal)       || Input.IsKeyPressed(Key.KpAdd))
+        { _camZoom = System.MathF.Max(2f, _camZoom * (1f - ZoomSpeed * delta)); moved = true; }
+        if (Input.IsKeyPressed(Key.Minus)       || Input.IsKeyPressed(Key.KpSubtract))
+        { _camZoom = System.MathF.Min(200f, _camZoom * (1f + ZoomSpeed * delta)); moved = true; }
+
+        if (moved) { UpdateCameraSize(); ApplyCameraTransform(); }
     }
 
     // ─── Input ───────────────────────────────────────────────────────────────
 
     public override void _Input(InputEvent @event)
     {
+        // Middle mouse button: toggle orbit mode
+        if (@event is InputEventMouseButton orbitBtn && orbitBtn.ButtonIndex == MouseButton.Middle)
+        {
+            _orbitActive = orbitBtn.Pressed;
+            return;
+        }
+
+        // Mouse motion while middle button held: orbit the camera
+        if (@event is InputEventMouseMotion motion && _orbitActive)
+        {
+            _camYaw   -= motion.Relative.X * 0.4f;
+            _camPitch  = System.MathF.Max(5f, System.MathF.Min(85f, _camPitch + motion.Relative.Y * 0.4f));
+            ApplyCameraTransform();
+            return;
+        }
+
         if (@event is not InputEventMouseButton mouseBtn) return;
         if (!mouseBtn.Pressed) return;
 
@@ -377,7 +480,7 @@ public partial class MapEditorNode : Node3D
 
     private void UpdateUIState()
     {
-        _heightLabel.Text = $"Height: {_state.GridY / MapEditorState.HeightStep}";
+        _heightLabel.Text = $"Y: {_state.GridY}";
         _facingLabel.Text = $"Facing: {_state.SelectedFacing}";
 
         UpdateGridPlaneY();
@@ -422,8 +525,9 @@ public partial class MapEditorNode : Node3D
 
     private void UpdateGridPlaneY()
     {
+        if (_gridPlane == null) return;
         float y = _state.GridY * TileGeometry.CellHeight + TileGeometry.CellHeight / 2f;
-        _gridPlane.Position = new Vector3(0f, y, 0f);
+        _gridPlane.Position = new Vector3(_camPivot.X, y, _camPivot.Z);
     }
 
     // ─── Geometry helpers ────────────────────────────────────────────────────
