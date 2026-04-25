@@ -23,6 +23,7 @@ public partial class TrackGridMap : Node3D
         AddChild(_gridMap);
 
         var placements = PlaceDemoTrack();
+        SpawnEarthBlocks();
         PositionCamera();
         PositionCar(placements);
     }
@@ -85,6 +86,32 @@ public partial class TrackGridMap : Node3D
         }
         GD.Print($"GridMap cell_size={_gridMap.CellSize} total cells={_gridMap.GetUsedCells().Count}");
         return placements;
+    }
+
+    private void SpawnEarthBlocks()
+    {
+        if (string.IsNullOrEmpty(TrackLayoutFile) || !FileAccess.FileExists(TrackLayoutFile))
+            return;
+
+        var json = FileAccess.GetFileAsString(TrackLayoutFile);
+        if (string.IsNullOrWhiteSpace(json)) return;
+
+        try
+        {
+            var blocks = TrackLayoutLoader.LoadEarthBlocksFromJson(json);
+            foreach (var eb in blocks)
+            {
+                var block = new BlockOfEarth();
+                block.Position = BlockOfEarth.GridToWorld(eb.GridX, eb.GridZ);
+                AddChild(block);
+            }
+            if (blocks.Length > 0)
+                GD.Print($"TrackGridMap: spawned {blocks.Length} earth blocks");
+        }
+        catch (System.Exception e)
+        {
+            GD.PrintErr($"TrackGridMap: failed to spawn earth blocks: {e.Message}");
+        }
     }
 
     private void PositionCar(TilePlacement[] placements)

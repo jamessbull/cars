@@ -18,6 +18,10 @@ public class MapEditorState
     public const int HeightStep = 1;
 
     public Dictionary<(int x, int y, int z), TilePlacement> PlacedTiles { get; } = new();
+    public HashSet<(int x, int z)> EarthBlocks { get; } = new();
+
+    public void PlaceEarthBlock(int gx, int gz)   => EarthBlocks.Add((gx, gz));
+    public void RemoveEarthBlock(int gx, int gz)  => EarthBlocks.Remove((gx, gz));
     public TileType SelectedType { get; private set; } = TileType.Flat;
     public CardinalDirection SelectedFacing { get; private set; } = CardinalDirection.North;
     public int GridY { get; private set; } = 0;
@@ -95,6 +99,6 @@ public class MapEditorState
         return (gx, gz);
     }
 
-    /// <summary>Serialize all placed tiles to JSON.</summary>
-    public string ToJson() => TrackLayoutLoader.SaveToJson(PlacedTiles.Values);
+    /// <summary>Serialize all placed tiles and earth blocks to JSON.</summary>
+    public string ToJson() => TrackLayoutLoader.SaveToJson(PlacedTiles.Values, EarthBlocks);
 }

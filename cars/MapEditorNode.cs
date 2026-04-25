@@ -22,6 +22,16 @@ public partial class MapEditorNode : Node3D
     private Button[]             _tileButtons;
     private Timer                _saveTimer;
 
+    // ─── Earth block tool state ───────────────────────────────────────────────
+    private bool                 _earthMode;
+    private bool                 _earthDragActive;
+    private (int gx, int gz)     _earthDragStart;
+    private (int gx, int gz)     _earthDragCurrent;
+    private MeshInstance3D       _earthPreview;
+    private Node3D               _earthContainer;
+    private System.Collections.Generic.Dictionary<(int, int), BlockOfEarth> _earthBlockNodes = new();
+    private Button               _earthModeBtn;
+
     // ─── Camera orbit / pan / zoom state ─────────────────────────────────────
     private Vector3 _camPivot  = Vector3.Zero;
     private float   _camYaw    = 45f;   // degrees, horizontal rotation
@@ -39,6 +49,8 @@ public partial class MapEditorNode : Node3D
         SetupGridPlane();
         SetupCellOutline();
         SetupUI();
+        SetupEarthContainer();
+        SetupEarthPreview();
         LoadExistingLayout();
         UpdateUIState();
     }
@@ -223,6 +235,21 @@ public partial class MapEditorNode : Node3D
             _tileButtons[i] = btn;
         }
 
+        vbox.AddChild(new HSeparator());
+
+        var worldLabel  = new Label();
+        worldLabel.Text = "World";
+        vbox.AddChild(worldLabel);
+
+        _earthModeBtn       = new Button();
+        _earthModeBtn.Text  = "Earth Blocks";
+        _earthModeBtn.Pressed += () =>
+        {
+            _earthMode = !_earthMode;
+            _earthModeBtn.Modulate = _earthMode ? new Color(0.85f, 0.55f, 0.20f) : Colors.White;
+        };
+        vbox.AddChild(_earthModeBtn);
+
         // ── Top bar ───────────────────────────────────────────────────────
         var topBarPanel = new Panel();
         topBarPanel.SetAnchor(Side.Left,   0);
@@ -295,6 +322,30 @@ public partial class MapEditorNode : Node3D
         helpPanel.AddChild(helpLabel);
     }
 
+    private void SetupEarthContainer()
+    {
+        _earthContainer = new Node3D();
+        AddChild(_earthContainer);
+    }
+
+    private void SetupEarthPreview()
+    {
+        var planeMesh = new PlaneMesh();
+        planeMesh.Size = new Vector2(TileGeometry.CellWidth, TileGeometry.CellDepth);
+
+        var mat = new StandardMaterial3D();
+        mat.AlbedoColor  = new Color(0.55f, 0.33f, 0.12f, 0.45f);
+        mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+        mat.ShadingMode  = BaseMaterial3D.ShadingModeEnum.Unshaded;
+        mat.CullMode     = BaseMaterial3D.CullModeEnum.Disabled;
+
+        _earthPreview = new MeshInstance3D();
+        _earthPreview.Mesh            = planeMesh;
+        _earthPreview.MaterialOverride = mat;
+        _earthPreview.Visible         = false;
+        AddChild(_earthPreview);
+    }
+
     // ─── Load existing track layout ──────────────────────────────────────────
 
     private void LoadExistingLayout()
@@ -322,6 +373,29 @@ public partial class MapEditorNode : Node3D
         }
 
         GD.Print($"MapEditor: loaded {placements.Length} tiles from track_layout.json");
+
+        try
+        {
+            var earthPlacements = TrackLayoutLoader.LoadEarthBlocksFromJson(json);
+            foreach (var eb in earthPlacements)
+            {
+                _state.PlaceEarthBlock(eb.GridX, eb.GridZ);
+                var key = (eb.GridX, eb.GridZ);
+                if (!_earthBlockNodes.ContainsKey(key))
+                {
+                    var block = new BlockOfEarth();
+                    block.Position = BlockOfEarth.GridToWorld(eb.GridX, eb.GridZ);
+                    _earthContainer.AddChild(block);
+                    _earthBlockNodes[key] = block;
+                }
+            }
+            if (earthPlacements.Length > 0)
+                GD.Print($"MapEditor: loaded {earthPlacements.Length} earth blocks");
+        }
+        catch (System.Exception e)
+        {
+            GD.PrintErr($"MapEditor: failed to load earth blocks: {e.Message}");
+        }
     }
 
     // ─── Per-frame update ────────────────────────────────────────────────────
@@ -371,27 +445,60 @@ public partial class MapEditorNode : Node3D
 
     public override void _Input(InputEvent @event)
     {
-        // Middle mouse button: toggle orbit mode
+        // Middle mouse: toggle orbit
         if (@event is InputEventMouseButton orbitBtn && orbitBtn.ButtonIndex == MouseButton.Middle)
         {
             _orbitActive = orbitBtn.Pressed;
             return;
         }
 
-        // Mouse motion while middle button held: orbit the camera
-        if (@event is InputEventMouseMotion motion && _orbitActive)
+        // Mouse motion: orbit OR update earth drag preview
+        if (@event is InputEventMouseMotion motion)
         {
-            _camYaw   -= motion.Relative.X * 0.4f;
-            _camPitch  = System.MathF.Max(5f, System.MathF.Min(85f, _camPitch + motion.Relative.Y * 0.4f));
-            ApplyCameraTransform();
+            if (_orbitActive)
+            {
+                _camYaw   -= motion.Relative.X * 0.4f;
+                _camPitch  = System.MathF.Max(5f, System.MathF.Min(85f, _camPitch + motion.Relative.Y * 0.4f));
+                ApplyCameraTransform();
+            }
+            else if (_earthMode && _earthDragActive)
+            {
+                _earthDragCurrent = GetHoveredCellAtWorldY(GetViewport().GetMousePosition(), 0f);
+                UpdateEarthPreview();
+            }
             return;
         }
 
         if (@event is not InputEventMouseButton mouseBtn) return;
-        if (!mouseBtn.Pressed) return;
 
         var mouse   = GetViewport().GetMousePosition();
         bool overUI = IsMouseOverSidebar(mouse);
+
+        // ── Earth block mode ──────────────────────────────────────────────────
+        if (_earthMode)
+        {
+            if (mouseBtn.ButtonIndex == MouseButton.Left && !overUI)
+            {
+                if (mouseBtn.Pressed)
+                {
+                    _earthDragActive  = true;
+                    _earthDragStart   = GetHoveredCellAtWorldY(mouse, 0f);
+                    _earthDragCurrent = _earthDragStart;
+                    _earthPreview.Visible = true;
+                    UpdateEarthPreview();
+                }
+                else if (_earthDragActive)
+                {
+                    CommitEarthRect();
+                    _earthDragActive      = false;
+                    _earthPreview.Visible = false;
+                }
+            }
+            return;
+        }
+
+        // ── Tile placement mode ───────────────────────────────────────────────
+        if (!mouseBtn.Pressed) return;
 
         switch (mouseBtn.ButtonIndex)
         {
@@ -530,6 +637,46 @@ public partial class MapEditorNode : Node3D
         _gridPlane.Position = new Vector3(_camPivot.X, y, _camPivot.Z);
     }
 
+    // ─── Earth block helpers ──────────────────────────────────────────────────
+
+    private void CommitEarthRect()
+    {
+        int x0 = System.Math.Min(_earthDragStart.gx, _earthDragCurrent.gx);
+        int x1 = System.Math.Max(_earthDragStart.gx, _earthDragCurrent.gx);
+        int z0 = System.Math.Min(_earthDragStart.gz, _earthDragCurrent.gz);
+        int z1 = System.Math.Max(_earthDragStart.gz, _earthDragCurrent.gz);
+
+        for (int gx = x0; gx <= x1; gx++)
+        for (int gz = z0; gz <= z1; gz++)
+        {
+            _state.PlaceEarthBlock(gx, gz);
+            var key = (gx, gz);
+            if (!_earthBlockNodes.ContainsKey(key))
+            {
+                var block = new BlockOfEarth();
+                block.Position = BlockOfEarth.GridToWorld(gx, gz);
+                _earthContainer.AddChild(block);
+                _earthBlockNodes[key] = block;
+            }
+        }
+    }
+
+    private void UpdateEarthPreview()
+    {
+        int x0 = System.Math.Min(_earthDragStart.gx, _earthDragCurrent.gx);
+        int x1 = System.Math.Max(_earthDragStart.gx, _earthDragCurrent.gx);
+        int z0 = System.Math.Min(_earthDragStart.gz, _earthDragCurrent.gz);
+        int z1 = System.Math.Max(_earthDragStart.gz, _earthDragCurrent.gz);
+
+        float sx = (x1 - x0 + 1) * TileGeometry.CellWidth;
+        float sz = (z1 - z0 + 1) * TileGeometry.CellDepth;
+        float cx = x0 * TileGeometry.CellWidth  + sx / 2f;
+        float cz = z0 * TileGeometry.CellDepth  + sz / 2f;
+
+        ((PlaneMesh)_earthPreview.Mesh).Size = new Vector2(sx, sz);
+        _earthPreview.Position = new Vector3(cx, 0.02f, cz);
+    }
+
     // ─── Geometry helpers ────────────────────────────────────────────────────
 
     private bool IsMouseOverSidebar(Vector2 mouse)
@@ -539,15 +686,17 @@ public partial class MapEditorNode : Node3D
 
     private (int gx, int gz) GetHoveredCell(Vector2 mouse)
     {
+        float planeY = _state.GridY * TileGeometry.CellHeight + TileGeometry.CellHeight / 2f;
+        return GetHoveredCellAtWorldY(mouse, planeY);
+    }
+
+    /// <summary>Ray-intersect a horizontal plane at worldY and return the grid cell hit.</summary>
+    private (int gx, int gz) GetHoveredCellAtWorldY(Vector2 mouse, float worldY)
+    {
         Vector3 origin = _camera.ProjectRayOrigin(mouse);
         Vector3 dir    = _camera.ProjectRayNormal(mouse);
-        // Ray intersects the tile surface plane, which sits at the GridMap item origin Y
-        // (cell_center_y = true → surface = gy * CellHeight + CellHeight/2).
-        float planeY   = _state.GridY * TileGeometry.CellHeight + TileGeometry.CellHeight / 2f;
-
         if (System.MathF.Abs(dir.Y) < 0.0001f) return (0, 0);
-
-        float t        = (planeY - origin.Y) / dir.Y;
+        float t        = (worldY - origin.Y) / dir.Y;
         Vector3 world  = origin + t * dir;
         return MapEditorState.WorldToGridXZ(world.X, world.Z);
     }

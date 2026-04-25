@@ -6,6 +6,12 @@ public enum CardinalDirection
     West
 }
 
+public struct EarthBlockPlacement
+{
+    public int GridX;
+    public int GridZ;
+}
+
 public struct TilePlacement
 {
     public TileType Type;
