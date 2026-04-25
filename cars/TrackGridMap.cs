@@ -9,6 +9,7 @@ public partial class TrackGridMap : Node3D
     /// </summary>
     [Export] public string TrackLayoutFile = "res://track_layout.json";
 
+    public Track Track { get; private set; }
     private GridMap _gridMap;
 
     public override void _Ready()
@@ -76,6 +77,7 @@ public partial class TrackGridMap : Node3D
     private TilePlacement[] PlaceDemoTrack()
     {
         var placements = LoadPlacements();
+        Track = new Track(placements);
         foreach (var placement in placements)
         {
             int tileId = (int)placement.Type;

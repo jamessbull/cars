@@ -4,7 +4,7 @@ public partial class CarBody : RigidBody3D
 {
     private MeshInstance3D[] _wheels = new MeshInstance3D[4];
     private float _steerAngle; // current front wheel angle (rad, positive = left)
-    private GridMap _gridMap;
+    private Track _track;
 
     // Wheel attachment points relative to chassis center
     private static readonly Vector3[] WheelPositions = new Vector3[]
@@ -37,19 +37,9 @@ public partial class CarBody : RigidBody3D
             _wheels[i] = GetNode<MeshInstance3D>($"Wheel{i}");
         }
 
-        // Cache GridMap reference (TrackGridMap sibling's child)
-        var trackGridMap = GetParent().GetNodeOrNull<Node3D>("TrackGridMap");
+        var trackGridMap = GetParent().GetNodeOrNull<TrackGridMap>("TrackGridMap");
         if (trackGridMap != null)
-        {
-            foreach (var child in trackGridMap.GetChildren())
-            {
-                if (child is GridMap gm)
-                {
-                    _gridMap = gm;
-                    break;
-                }
-            }
-        }
+            _track = trackGridMap.Track;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -92,45 +82,20 @@ public partial class CarBody : RigidBody3D
         // Surface-dependent grip and drag — applied when grounded
         if (result.GroundedCount > 0)
         {
-            // Detect the tile the car is physically resting on.
-            // The car rides ~0.85 m above the tile surface (SpringRestLength + WheelRadius),
-            // which is ~3-4 grid cells up. Search downward from the car's grid height to
-            // find the first occupied tile — this correctly handles both ground level and
-            // elevated bridge tiles, ignoring grass beneath a bridge.
-            bool isGrass = false;
-            bool isGravel = false;
-            if (_gridMap != null)
-            {
-                int gx = Mathf.FloorToInt(GlobalPosition.X / TileGeometry.CellWidth);
-                int gz = Mathf.FloorToInt(GlobalPosition.Z / TileGeometry.CellDepth);
-                int carGridY = Mathf.FloorToInt(GlobalPosition.Y / TileGeometry.CellHeight);
-                int cellItem = -1;
-                for (int gy = carGridY; gy >= 0; gy--)
-                {
-                    int item = _gridMap.GetCellItem(new Vector3I(gx, gy, gz));
-                    if (item >= 0) { cellItem = item; break; }
-                }
-                isGravel = cellItem == (int)TileType.Gravel;
-                isGrass  = cellItem == (int)TileType.Grass;
-            }
+            float px = GlobalPosition.X, py = GlobalPosition.Y, pz = GlobalPosition.Z;
+            float grip = _track?.GripAt(px, py, pz) ?? 1.0f;
+            float drag = _track?.DragAt(px, py, pz) ?? CarConstants.RollingDragFactor;
 
-            var flatForward = new Vector3(forward.X, 0f, forward.Z).Normalized();
-            float flatSpeed    = LinearVelocity.Dot(flatForward);
+            var flatForward     = new Vector3(forward.X, 0f, forward.Z).Normalized();
+            float flatSpeed     = LinearVelocity.Dot(flatForward);
             float verticalSpeed = LinearVelocity.Y;
 
-            // Lateral grip: cancel sideways velocity.
-            // Road = full correction (gripFactor 1.0), Grass = partial (allows sliding).
-            float gripFactor = isGrass ? CarConstants.GrassGripFactor : 1.0f;
+            // Cancel lateral velocity scaled by surface grip (1.0 = full, <1 = sliding)
             var lateral = LinearVelocity - flatForward * flatSpeed - Vector3.Up * verticalSpeed;
-            LinearVelocity -= lateral * gripFactor;
+            LinearVelocity -= lateral * grip;
 
-            // Rolling drag (surface-dependent)
-            if (isGravel)
-                LinearVelocity *= CarConstants.GravelDragFactor;
-            else if (isGrass)
-                LinearVelocity *= CarConstants.GrassDragFactor;
-            else
-                LinearVelocity *= CarConstants.RollingDragFactor;
+            // Apply surface drag
+            LinearVelocity *= drag;
         }
 
         // Steering: directly set Y angular velocity (stops immediately on key release)
